@@ -1296,6 +1296,7 @@ void Board::loadPosition(PieceType* piecelist, Color turn, int epIndex, int wlon
     _resetLegalMovesCache();
 
     _threefoldFlag = false;
+    _threefoldMap.clear();
 
     _threefoldMap.insert(_zobristHash);
 }

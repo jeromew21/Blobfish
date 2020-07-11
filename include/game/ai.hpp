@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 const size_t TABLE_SIZE = 16384;
+const size_t CAPACITY = 16384;
 
 enum NodeType {
     PV = 0, Cut = 1, All = 2
@@ -30,44 +31,63 @@ struct TableNode {
     bool operator==(const TableNode &other) const {
         return (hash == other.hash);
     }
+
+    TableNode() {
+        hash = 0;
+    }
+};
+
+struct TableBucket {
+    TableNode first;
+    int second;
+
+    TableBucket() {}
+
 };
 
 void sendPV(Board &board, int depth, int nodeCount, int score, int time);
 
-namespace std {
-  template <> struct hash<TableNode> {
-    std::size_t operator()(const TableNode& k) const {
-      return k.hash;
-    }
-  };
-}
-
 class TranspositionTable {
-    std::unordered_map<TableNode, int> map;
+    TableBucket _arr[TABLE_SIZE];
+    size_t members;
+
     public: 
-        int get(TableNode &node) {
-            return map.at(node);
+        TranspositionTable() {
+            members = 0;
         }
 
-        std::unordered_map<TableNode, int>::iterator find(TableNode &node) {
-            return map.find(node);
+        int ppm() {
+            return ((double) members / (double) CAPACITY) * 1000.0;
         }
 
-        std::unordered_map<TableNode, int>::iterator end() {
-            return map.end();
+
+        TableBucket* find(TableNode &node) {
+            u64 hashval = node.hash;
+            int bucketIndex = hashval % TABLE_SIZE;
+            TableBucket* bucket = _arr + bucketIndex;
+            if (bucket->first == node) {
+                return bucket;
+            }
+            return NULL;
         }
 
-        bool contains(TableNode &node) {
-            return map.find(node) != map.end();
+        TableBucket* end() {
+            return NULL;
         }
 
         void insert(TableNode &node, int score) {
-            map.erase(node);
-            map.insert({node, score});
-        }
-
-        void erase(TableNode &node) {
-            map.erase(node);
+            u64 hashval = node.hash;
+            int bucketIndex = hashval % TABLE_SIZE;
+            TableBucket* bucket = _arr + bucketIndex;
+            if (bucket->first.hash == 0) {
+                //no overwrite
+                members += 1;
+            }
+            if (members > CAPACITY) {
+                //evict
+            }
+            bucket->first = node;
+            bucket->second = score;
         }
 };
 
@@ -83,11 +103,11 @@ namespace AI {
 
     Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore);
 
-    Move randomMove(Board &board);
-
     int quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<bool> &stop, int &count);
 
     int alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<bool> &stop, int &count, bool isPv);
+
+    void orderMoves(Board &board, std::vector<Move> &mvs);
 
     void init();
 }

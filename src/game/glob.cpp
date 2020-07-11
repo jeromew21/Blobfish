@@ -8,7 +8,8 @@ void debugLog(const std::string& f) {
     std::ofstream fileout;
 
     fileout.open("debuglog.txt", std::ios_base::app);
-    fileout << f << "\n"; 
+    fileout << f << "\n";
+    std::cout << "info string " << f << std::endl;
     fileout.close();
 }
 

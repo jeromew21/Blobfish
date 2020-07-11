@@ -7,12 +7,16 @@ class UCIInterface {
    private:
       bool _debug;
    public:
-      std::atomic<bool> _stop{false};
+      std::atomic<bool> _notThinking{true};
       Move bestMove;
       Board board;
       std::thread _task;
 
-      void run()
+      UCIInterface() {
+         _notThinking = true;
+      }
+
+      void think()
       {
          //iterative deepening
          int depth = 0;
@@ -22,21 +26,34 @@ class UCIInterface {
          for (depth = 1; depth < depthLimit; depth++) {
             int score;
             //send principal variation move from previous
-            Move calcMove = AI::rootMove(board, depth, _stop, score);
-            if (_stop) {
-               /*
-               if (score > bestScore) { //if we get a better score in stopped search
-                  bestMove = calcMove;
-                  bestScore = score;
-               } //Very sus...
-               */
+            Move calcMove = AI::rootMove(board, depth, _notThinking, score);
+            if (_notThinking) {
+               
+               if (!(calcMove == bestMove)) {
+                  //either the score is better or worse.
+                  if (score > bestScore) { //if we get a better score in stopped search
+                     bestMove = calcMove;
+                     bestScore = score;
+                  } else {
+                     //cry like a grandmaster: we are in trouble here...
+                     //we don't know if the score is bad because we haven't found a better move yet
+                     //also we don't know if we NEED to pick a different move because our PV move is refuted
+                  }
+               } //else: same move as last layer
                break;
             } 
             if (score > INTMAX || score < INTMIN) {
                bestMove = calcMove;
-               break;
-            } else {
-               bestMove = calcMove;
+               int y = (int) ceil( (double) depth / 2.0 );
+               if (score < INTMIN) {
+                  y *= -1;
+               }
+               sendCommand("info score mate " + std::to_string(y));
+               sendCommand("bestmove " + board.moveToUCIAlgebraic(bestMove));
+               debugLog("RUN() reached end");
+               return;
+            } else { //it finishes at that layer
+               bestMove = calcMove; //PV-move
                bestScore = score;
             }
          }
@@ -44,19 +61,23 @@ class UCIInterface {
          debugLog("RUN() reached end");
       }
 
-      void stopThread() {
-         _stop = true;
-         _task.join();
-         debugLog("thread stopped");
+      void stopThinking() {
+         if (!_notThinking) {
+            _notThinking = true;
+            _task.join();
+            debugLog("thread stopped");
+         }
       }
 
-      void launchThread(int msecs)
+      void startThinking(int msecs, bool inf)
       {
-         _stop = false;
+         _notThinking = false;
          debugLog("thread launched");
-         _task = std::thread(&UCIInterface::run, this);
-         std::this_thread::sleep_for(std::chrono::milliseconds(msecs));
-         stopThread();
+         _task = std::thread(&UCIInterface::think, this);
+         if (!inf) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(msecs));
+            stopThinking();
+         }
       }
 
       void recieveCommand(std::string cmd) {
@@ -108,15 +129,23 @@ class UCIInterface {
    As the engine's reaction to "ucinewgame" can take some time the GUI should always send "isready"
    after "ucinewgame" to wait for the engine to finish its operation.*/
          } else if (tokens[0] == "position") {
+            int j = 2;
             if (tokens[1] == "startpos") {
                board.reset();
             } else {
-               board.loadPosition(tokens[1]);
+               if (tokens[1] == "fen") {
+                  std::string fenstring = "";
+                  for (int k = 2; k < 8; k++) {
+                     fenstring += tokens[k] + " ";
+                  }
+                  board.loadPosition(fenstring);
+                  j = 8;
+               }
             }
-            if (tokens.size() > 2) {
-               if (tokens[2] == "moves") {
+            if ((int) tokens.size() > j) {
+               if (tokens[j] == "moves") {
                   //play moves
-                  for (int k = 3; k < (int) tokens.size(); k++) {
+                  for (int k = j+1; k < (int) tokens.size(); k++) {
                      auto mvtxt = tokens[k];
                      board.makeMove(board.moveFromAlgebraic(mvtxt));
                   }
@@ -131,6 +160,7 @@ class UCIInterface {
                the last position sent to the engine, the GUI should have sent a "ucinewgame" inbetween.
             */
          } else if (tokens[0] == "go") {
+            if (_notThinking) {
             /*
                * go
                start calculating on the current position set up with the "position" command.
@@ -159,7 +189,7 @@ class UCIInterface {
                * binc 
                   black increment per move in mseconds if x > 0
                * movestogo 
-                  there are x moves to the next time control,
+               there are x moves to the next time control,
                   this will only be sent if x > 0,
                   if you don't get this and get the wtime and btime it's sudden death
                * depth 
@@ -173,36 +203,39 @@ class UCIInterface {
                * infinite
                   search until the "stop" command. Do not exit the search without being told so in this mode!
             */
-            Color color = board.turn();
-            int myTime = 0;
-            for (int k = 1; k < (int) tokens.size(); k++) {
-               auto token = tokens[k];
-               if (token == "wtime") {
-                  k++;
-                  if (color == White && myTime == 0) {
+               Color color = board.turn();
+               bool inf = false;
+               int myTime = 0;
+               for (int k = 1; k < (int) tokens.size(); k++) {
+                  auto token = tokens[k];
+                  if (token == "wtime") {
+                     k++;
+                     if (color == White && myTime == 0) {
+                        myTime = std::stoi(tokens[k]);
+                     }
+                  } else if (token == "btime" && myTime == 0) {
+                     k++;
+                     if (color == Black) {
+                        myTime = std::stoi(tokens[k]);
+                     }
+                  } else if (token == "movetime") {
+                     k++;
                      myTime = std::stoi(tokens[k]);
+                  } else if (token == "infinite") {
+                     myTime = 10000000; //close enough
+                     inf = true;
                   }
-               } else if (token == "btime" && myTime == 0) {
-                  k++;
-                  if (color == Black) {
-                     myTime = std::stoi(tokens[k]);
-                  }
-               } else if (token == "movetime") {
-                  k++;
-                  myTime = std::stoi(tokens[k]);
                }
+               int t = ((double) myTime / 30.0);
+               startThinking(t, inf);
             }
-            int t = ((double) myTime / 30.0);
-            launchThread(t);
          } else if (tokens[0] == "stop") {
             /*
                stop
                stop calculating as soon as possible,
                don't forget the "bestmove" and possibly the "ponder" token when finishing the search
             */
-            stopThread();
-            auto mv = bestMove;
-            sendCommand("bestmove " + board.moveToUCIAlgebraic(mv));
+            stopThinking();
          } else if (tokens[0] == "ponderhit") {
             /*
                * ponderhit
@@ -220,7 +253,7 @@ class UCIInterface {
 
       ~UCIInterface()
       {
-         stopThread();
+         stopThinking();
       }
 };
 
@@ -229,8 +262,8 @@ int main()
    populateMoveCache();
    initializeZobrist();
    AI::init();
-   srand(463643);
-   srand100(65634536);
+   //srand100(65634536);
+   srand100(13194);
 
    {
       UCIInterface interface;

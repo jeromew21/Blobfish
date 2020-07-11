@@ -91,10 +91,14 @@ int AI::flippedEval(Board &board) {
 }
 
 Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore) {
-    TableNode node(board, 0, NodeType::PV);
+    sendCommand("info string ID DEPTH=" + std::to_string(depth));
+    TableNode node(board, depth, NodeType::PV);
+    int count = 1;
 
     auto moves = board.legalMoves();
-    
+    orderMoves(board, moves);
+    int alpha = INTMIN;
+
     //order moves
     auto search = table.find(node);
     if (search != table.end()) {
@@ -103,28 +107,27 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
 
             for (int i = 0; i < (int) moves.size(); i++) {
                 if (moves[i] == pvMove) {
-                    Move temp = moves[0];
-                    moves[0] = pvMove;
+                    Move temp = moves[moves.size() - 1];
+                    moves[moves.size() - 1] = pvMove;
                     moves[i] = temp;
                     break;
                 }
             }
         }
     }
+    Move chosen = moves[moves.size() - 1]; //PV-move
+    node.bestMove = chosen; //not in table, so change it
 
-    Move chosen = moves[0];
-
-    int alpha = INTMIN;
     int beta = INTMAX;
     outscore = alpha;
-
-    node.bestMove = chosen;
+    
     
     bool pvFlag = true;
-    int count = 1;
     auto start = std::chrono::high_resolution_clock::now();
 
-    for (Move& mv : moves) {
+    while (moves.size() > 0) {
+        Move mv = moves.back();
+        moves.pop_back();
         board.makeMove(mv);
         int score = -1*AI::alphaBetaNega(board, depth, -1*beta, -1*alpha, stop, count, pvFlag);
         board.unmakeMove();
@@ -132,7 +135,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
 
         if (stop) {
             outscore = alpha;
-            return chosen;
+            return chosen; //returns best found so far
         } //here bc if AB call stopped, it won't be full search
 
         if (score > alpha) {
@@ -145,6 +148,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start); //or milliseconds
             int ms = duration.count();
             sendPV(board, depth, count, alpha, ms);
+            sendCommand("info hashfull " + std::to_string(table.ppm()));
         }
     }
     return chosen;
@@ -158,7 +162,7 @@ void sendPV(Board &board, int depth, int nodeCount, int score, int time) {
         auto search = table.find(nodeSearch);
         if (search != table.end()) {
             TableNode node = search->first;
-            if (node.nodeType == NodeType::PV) {
+            if (node.nodeType == NodeType::PV || true) {
                 Move mv = node.bestMove;
                 pv += board.moveToUCIAlgebraic(mv);
                 pv += " ";
@@ -182,30 +186,48 @@ void sendPV(Board &board, int depth, int nodeCount, int score, int time) {
         " nodes " + std::to_string(nodeCount) + pv);
 }
 
-
-Move AI::randomMove(Board &board) {
-    auto moves = board.legalMoves();
-    return moves[rand() % moves.size()];
-}
-
 TranspositionTable& AI::getTable() {
     return table;
 }
 
 int AI::quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<bool> &stop, int &count) {
     count++;
+    auto moves = board.legalMoves();
     int baseline = AI::flippedEval(board);
-    //if (depth == 0) return baseline;
+    if (board.isTerminal()) {
+        return baseline; //why was this ommitted?
+    }
+
+    if (plyCount == 0) {
+        //check table
+        TableNode node(board, 0, NodeType::All);
+        auto found = table.find(node);
+        if (found != table.end()) {
+            NodeType typ = found->first.nodeType;
+            if (typ == NodeType::All) {
+                //upper bound, the exact score might be less.
+                beta = AI::min(beta, found->second);
+            } else if (typ == NodeType::Cut) {
+                //lower bound
+                alpha = AI::max(alpha, found->second);
+                
+            } else if (typ == NodeType::PV) {
+                return found->second;
+            }
+            if (alpha >= beta) {
+                return found->second;
+            }
+        }
+    }
 
     if (baseline >= beta) return beta; // fail hard
 
     if (alpha < baseline) alpha = baseline; //push alpha up to baseline
 
-    auto moves = board.legalMoves();
     u64 piecemap = board.occupancy();
     for (Move& mv : moves) {
         if (stop) {
-            return baseline; //mitigate horizon effect
+            return INTMIN; //mitigate horizon effect, otherwise we could be in big trouble
         }
         if (mv.dest & piecemap) {
             //captures, and checks???????????
@@ -219,10 +241,42 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<
     return alpha;
 }
 
+void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
+    //put captures first
+    u64 piecemap = board.occupancy();
+    int size = mvs.size();
+
+    for (int j = 0; j < size; j++) {
+        Move mv = mvs[j];
+        if (mvs[j].dest & piecemap) {
+            mvs.erase(mvs.begin() + j);
+            mvs.push_back(mv);
+            j--;
+            size--;
+        }
+        if (j > size) {
+            break;
+        }
+    }
+}
+
 
 int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<bool> &stop, int &count, bool isPv) {
     count++;
+
+    if (board.isTerminal()) {
+        int score = AI::flippedEval(board); // store?
+        return score;
+    }
+
+    if (depth == 0) {
+        int score = quiescence(board, 0, alpha, beta, stop, count);
+        return score;
+    }
+
     auto moves = board.legalMoves();
+    orderMoves(board, moves);
+    //order moves
 
     TableNode node(board, depth, NodeType::All);
     auto found = table.find(node);
@@ -261,16 +315,7 @@ int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<
         table.insert(node, alpha); //overwrite with score as alpha
     }
 
-    if (board.isTerminal()) {
-        int score = AI::flippedEval(board); // store?
-        return score;
-    }
-
-    if (depth == 0) {
-        int score = quiescence(board, 0, alpha, beta, stop, count);
-        return score;
-    }
-
+    
     /*
     bool nullmove = true;
     //NULL MOVE PRUNE
@@ -306,7 +351,7 @@ int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<
             node.nodeType = NodeType::Cut;
             node.bestMove = mv;
             table.insert(node, beta);
-            return beta;
+            return beta; //fail hard
         }
 
         if (score > alpha) {
