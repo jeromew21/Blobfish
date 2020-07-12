@@ -263,65 +263,6 @@ void populateMoveCache() {
     debugLog("Initialized move cache");
 }
 
-void Board::_findPieceLocations() {
-    //costly
-    _pieceLocations.clear();
-    PieceType piece = pieceIndexFromColor(turn());
-    PieceType end = piece + 6;
-    while (piece < end) {
-        u64 bitset = bitboard[piece];
-        int scan = -1;
-        while (bitset && scan < 63) {
-            scan = bitscanForward(bitset);
-            _pieceLocations.push_back(PieceIndexTuple(piece, scan));
-            u64 mask = (~((u64)0)) << (scan+1);
-            bitset = bitset & mask;
-        }
-        // 0, 1, ..., 63
-        piece++;
-    }
-}
-
-void Board::resetMoveIterator() {
-    //costly
-    _findPieceLocations();
-    _pieceIndex = 0;
-    _movesetIndex = 0;
-    _moveset.clear();
-}
-
-Move Board::nextMove() {
-    //grab the next move of _moveset
-    //either 1) we return the next move in the moveset
-    // 2) there is no next move in the moveset, then 
-        // 1) there is a new moveset
-        // 2) there is no more moveset
-    if (_movesetIndex < _moveset.size()) {
-        int i = _movesetIndex;
-        _movesetIndex += 1;
-        //if it is legal...
-        Move mv = _moveset[i];
-        Color color = turn();
-        makeMove(mv, false);
-        bool ischeck = isInCheck(color);
-        unmakeMove(false);
-        if (ischeck) {
-            return nextMove();
-        } else {
-            return mv;
-        }
-    } else {
-        //okay, get me a new moveset
-        if (_nextMoveset()) {
-            _movesetIndex = 0;
-            _pieceIndex += 1;
-            return nextMove();
-        } else {
-            return Move::END();
-        }
-    }
-}
-
 int Board::material() {
     return material(White) - material(Black);
 }
@@ -336,96 +277,107 @@ int Board::material(Color color) {
     return result;
 }
 
-bool Board::isInCheck(Color color) {
-    //not super costly, but still don't call unless abs neccessary
-    if (color == White) {
-        return _pieceUnderAttack(color, bitboard[W_King]);
-    } else {
-        return _pieceUnderAttack(color, bitboard[B_King]);
+void Board::_generatePseudoLegal() {
+    int size = 0;
+    std::array<u64, 64> arr;
+    arr = bitscanAll(bitboard[W_Knight], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _knightAttacks(arr[i], White);
+        pieceAttacks[W_Knight] = attacks;
+        pieceMoves[W_Knight] = attacks;
+    }
+    arr = bitscanAll(bitboard[B_Knight], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _knightAttacks(arr[i], Black);
+        pieceAttacks[B_Knight] = attacks;
+        pieceMoves[B_Knight] = attacks;
+    }
+
+    arr = bitscanAll(bitboard[W_King], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _kingAttacks(arr[i], White);
+        pieceAttacks[W_King] = attacks;
+        pieceMoves[W_King] = attacks;
+    }
+    arr = bitscanAll(bitboard[B_King], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _kingAttacks(arr[i], Black);
+        pieceAttacks[B_King] = attacks;
+        pieceMoves[B_King] = attacks;
+    }
+
+    arr = bitscanAll(bitboard[W_Bishop], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _bishopAttacks(arr[i], White);
+        pieceAttacks[W_Bishop] = attacks;
+        pieceMoves[W_Bishop] = attacks;
+    }
+    arr = bitscanAll(bitboard[B_Bishop], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _bishopAttacks(arr[i], Black);
+        pieceAttacks[B_Bishop] = attacks;
+        pieceMoves[B_Bishop] = attacks;
+    }
+
+    arr = bitscanAll(bitboard[W_Rook], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _rookAttacks(arr[i], White);
+        pieceAttacks[W_Rook] = attacks;
+        pieceMoves[W_Rook] = attacks;
+    }
+    arr = bitscanAll(bitboard[B_Rook], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _rookAttacks(arr[i], Black);
+        pieceAttacks[B_Rook] = attacks;
+        pieceMoves[B_Rook] = attacks;
+    }
+
+    arr = bitscanAll(bitboard[W_Queen], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _rookAttacks(arr[i], White) | _bishopAttacks(arr[i], White);
+        pieceAttacks[W_Queen] = attacks;
+        pieceMoves[W_Queen] = attacks;
+    }
+    arr = bitscanAll(bitboard[B_Queen], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _rookAttacks(arr[i], Black) | _bishopAttacks(arr[i], Black);
+        pieceAttacks[B_Queen] = attacks;
+        pieceMoves[B_Queen] = attacks;
+    }
+
+    arr = bitscanAll(bitboard[W_Pawn], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _pawnAttacks(arr[i], White);
+        pieceAttacks[W_Pawn] = attacks;
+        pieceMoves[W_Pawn] = _pawnMoves(arr[i], White) | attacks;
+    }
+    arr = bitscanAll(bitboard[B_Pawn], size);
+    for (int i = 0; i < size; i++) {
+        u64 attacks = _pawnAttacks(arr[i], Black);
+        pieceAttacks[B_Pawn] = attacks;
+        pieceMoves[B_Pawn] = _pawnMoves(arr[i], Black) | attacks;
     }
 }
 
-bool Board::_pieceUnderAttack(Color color, u64 pieceBitboard) {
-    //given a position, go thru all piece enemy types
-    int i = 0;
-    if (color == Black) {
-        i = 6;
-    }
-    u64 kingPos = pieceBitboard;
-    int kingPosIndex = u64ToIndex(kingPos);
-    u64 knights = bitboard[B_Knight-i] & KNIGHT_MOVE_CACHE[kingPosIndex]; //enemy knights, and possible locations
-    u64 pawns = bitboard[B_Pawn-i] & PAWN_CAPTURE_CACHE[kingPosIndex][color];
-    u64 eKing = bitboard[B_King-i] & KING_MOVE_CACHE[kingPosIndex];
-    if (knights | pawns | eKing) {
-        return true;
-    }
-    //sliding pieces: trickier
-    u64 occupants = occupancy();
-    u64 bishops = 0;
-    u64 rooks = 0;
-    u64 ray;
-    u64 overlaps;
-    u64 raycast;
-    ray = BISHOP_MOVE_CACHE[kingPosIndex][0];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanForward(overlaps));
-        bishops |= raycast;
-    }
-    ray = BISHOP_MOVE_CACHE[kingPosIndex][1];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanForward(overlaps));
-        bishops |= raycast;
-    }
-    ray = BISHOP_MOVE_CACHE[kingPosIndex][2];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanReverse(overlaps));
-        bishops |= raycast;
-    }
-    ray = BISHOP_MOVE_CACHE[kingPosIndex][3];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanReverse(overlaps));
-        bishops |= raycast;
-    }
-    if (bishops & bitboard[B_Bishop-i] || bishops & bitboard[B_Queen-i]) {
-        return true;
-    }
+u64 Board::_attackers(u64 target) {
 
-    ray = ROOK_MOVE_CACHE[kingPosIndex][0];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanForward(overlaps));
-        rooks |= raycast;
-    }
-    ray = ROOK_MOVE_CACHE[kingPosIndex][1];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanForward(overlaps));
-        rooks |= raycast;
-    }
-    ray = ROOK_MOVE_CACHE[kingPosIndex][2];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanReverse(overlaps));
-        rooks |= raycast;
-    }
-    ray = ROOK_MOVE_CACHE[kingPosIndex][3];
-    overlaps = ray & occupants;
-    if (overlaps) {
-        raycast = u64FromIndex(bitscanReverse(overlaps));
-        rooks |= raycast;
-    }
-    return rooks & bitboard[B_Rook-i] || rooks & bitboard[B_Queen-i];
+}
+
+u64 Board::_attackers(u64 target, Color c) {
+
+}
+
+int Board::isInCheck(Color color) {
+    //not super costly, but still don't call unless abs neccessary
+    u64 kingBB = color == White ? bitboard[W_King] : bitboard[B_King];
+    return hadd(_attackers(kingBB, flipColor(color)));
 }
 
 PieceType Board::pieceAt(u64 space) {
     //temporary solution
     //COSTLY: DO NOT CALL UNLESS ABSOLUTELY NECESSARY
     //future: hold cached mailbox board repr
-    for (PieceType i = W_King; i < Empty; i++) {
+    for (PieceType i = 0; i < Empty; i++) {
         if (space & bitboard[i]) {
             return i;
         }
@@ -480,7 +432,6 @@ std::string Board::moveToUCIAlgebraic(const Move &mv) {
     }
     return result;
 }
-
 
 bool Board::canUndo() {
     return stack.canPop();
@@ -542,7 +493,6 @@ std::string Board::moveToAlgebraic(const Move &mv) {
     return result;
 }
 
-
 bool Board::isTerminal() {
     return status() != BoardStatus::Playing;
 }
@@ -553,25 +503,11 @@ BoardStatus Board::status() {
     if (material(White) + material(Black) <= 350 || _threefoldFlag) {
         return BoardStatus::Draw;
     }
-    if (turn() == White) {
-        auto moves = legalMoves();
-        if (moves.size() == 0) {
-            return isInCheck(White) ? BoardStatus::BlackWin : BoardStatus::Stalemate;
-        } else {
-            return BoardStatus::Playing;
-        }
+    if (isInCheck(turn()) > 0) {
+        //generate unchecking moves
     } else {
-        auto moves = legalMoves();
-        if (moves.size() == 0) {
-            return isInCheck(Black) ? BoardStatus::WhiteWin : BoardStatus::Stalemate;
-        } else {
-            return BoardStatus::Playing;
-        }
-    }
-}
 
-void Board::_resetLegalMovesCache() {
-    _legalMovesDirty = true;
+    }
 }
 
 void Board::_switchTurn() {
@@ -586,10 +522,6 @@ void Board::_switchTurn(Color t) {
         _zobristHash ^= hash;
     }
     boardState[TURN_INDEX] = t;
-}
-
-void Board::makeMove(Move mv) {
-    makeMove(mv, true);
 }
 
 u64 Board::zobrist() {
@@ -618,11 +550,7 @@ void Board::_addPiece(PieceType p, u64 location) {
     bitboard[p] |= location;
 }
 
-void Board::makeMove(Move mv, bool dirty) {
-    if (dirty) {
-        _resetLegalMovesCache();
-    } //IF NOT, WE PROMISE TO CHANGE EVERYTHING BACK!
-
+void Board::makeMove(Move mv) {
     if (mv.moveType != MoveType::Null) {
         //mask out mover
         _removePiece(mv.mover, mv.src);
@@ -728,14 +656,15 @@ void Board::makeMove(Move mv, bool dirty) {
         _setEpSquare(-1);
     }
     
-    if (dirty) {
-        auto threefoldCount = _threefoldMap.find(_zobristHash);
-        if (threefoldCount != _threefoldMap.end()) {
-            _threefoldFlag = true;
-        } else {
-            _threefoldMap.insert(_zobristHash);
-        }
+    auto threefoldCount = _threefoldMap.find(_zobristHash);
+    if (threefoldCount != _threefoldMap.end()) {
+        _threefoldFlag = true;
+    } else {
+        _threefoldMap.insert(_zobristHash);
     }
+
+    _generatePseudoLegal();
+    _hasGeneratedMoves = false;
 }
 
 void Board::_setCastlingPrivileges(Color color, int cLong, int cShort) {
@@ -788,19 +717,13 @@ void Board::_setEpSquare(int sq) {
     boardState[EN_PASSANT_INDEX] = sq;
 }
 
-void Board::unmakeMove() {
-    unmakeMove(true);
-}
 
-void Board::unmakeMove(bool dirty) {
-    if (dirty) {
-        //state changer
-        _resetLegalMovesCache();
-         auto threefoldCount = _threefoldMap.find(_zobristHash);
-        _threefoldFlag = false;
-        if (threefoldCount != _threefoldMap.end()) {
-            _threefoldMap.erase(_zobristHash);
-        }
+void Board::unmakeMove() {
+    //state changer
+    auto threefoldCount = _threefoldMap.find(_zobristHash);
+    _threefoldFlag = false;
+    if (threefoldCount != _threefoldMap.end()) {
+        _threefoldMap.erase(_zobristHash);
     }
 
     BoardStateNode &node = stack.peek();
@@ -941,227 +864,134 @@ void Board::dump(bool debug) {
     }
 }
 
-//Jump to the next moveset, internally
-//Will set _moveset to _pieceIndex piece moves
-bool Board::_nextMoveset() {
-    //clear current moveset. resetset indices
-    _moveset.clear();
+u64 Board::_knightAttacks(u64 index64, Color color) {
+    u64 friendlies = occupancy(color);
+    u64 ray = 0;
+    int index = u64ToIndex(index64);
+    u64 result = 0;
+    ray = KNIGHT_MOVE_CACHE[index];
+    result |= ray;
+    result &= ~friendlies; //remove friendlies
+    return result;
+}
 
-    //if we are out of movesets, return false
-    if (_pieceIndex >= _pieceLocations.size()) {
-        return false;
+u64 Board::_pawnMoves(u64 index64, Color color) {
+    u64 occupants = occupancy();
+    int index = u64ToIndex(index64);
+    u64 result = 0;
+    u64 forward1 = PAWN_MOVE_CACHE[index][color];
+    if (!(forward1 & occupants)) { //if one forward is empty
+        result |= forward1;
+        if ((color == White && u64ToRow(index64) == 1) ||
+            (color == Black && u64ToRow(index64) == 6)) {
+            u64 forward2 = PAWN_DOUBLE_CACHE[index][color];
+            if (!((forward1 | forward2) & occupants)) { //two forward are empty
+                result |= forward2;
+            }
+        }
     }
+    return result;
+}
 
-    Color color = turn();
+u64 Board::_pawnAttacks(u64 index64, Color color) {
+    int index = u64ToIndex(index64);
+    u64 result = 0;
+    u64 enemies = occupancy(flipColor(color));
+    u64 captures = PAWN_CAPTURE_CACHE[index][color];
+    result |= captures & enemies; //plus en passant sqaure
+    if (color == turn() && boardState[EN_PASSANT_INDEX] >= 0) {
+        u64 epSquare = u64FromIndex(boardState[EN_PASSANT_INDEX]);
+        result |= captures & epSquare;
+    }
+    return result;
+}
+
+u64 Board::_kingAttacks(u64 index64, Color color) {
+    u64 friendlies = occupancy(color);
+    u64 ray = 0;
+    u64 result = 0;
+    int index = u64ToIndex(index64);
+    ray = KING_MOVE_CACHE[index];
+    result |= ray;
+    result &= ~friendlies; //remove friendlies
+    return result;
+}
+
+u64 Board::_rookAttacks(u64 index64, Color color) {
+    //given a color rook at index64
     u64 friendlies = occupancy(color);
     u64 enemies = occupancy(flipColor(color));
     u64 occupants = friendlies | enemies;
-
-
-    PieceIndexTuple t = _pieceLocations[_pieceIndex];
-    PieceType piece = t.piece; //piece type
-    int index = t.index; //location of piece, 0-64
-    u64 index64 = u64FromIndex(index);
+    int index = u64ToIndex(index64);
+    u64 ray = 0;
+    u64 overlaps = 0;
     u64 result = 0;
-    u64 ray;
-    u64 overlaps;
-    if (piece == W_Bishop 
-        || piece == B_Bishop 
-        || piece == W_Queen 
-        || piece == B_Queen)
-    {
-        ray = BISHOP_MOVE_CACHE[index][0];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~BISHOP_MOVE_CACHE[bitscanForward(overlaps)][0];
-        }
-        ray = BISHOP_MOVE_CACHE[index][1];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~BISHOP_MOVE_CACHE[bitscanForward(overlaps)][1];
-        }
-        ray = BISHOP_MOVE_CACHE[index][2];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~BISHOP_MOVE_CACHE[bitscanReverse(overlaps)][2];
-        }
-        ray = BISHOP_MOVE_CACHE[index][3];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~BISHOP_MOVE_CACHE[bitscanReverse(overlaps)][3];
-        }
-        result &= ~friendlies; //remove friendlies
-    }
-    if (piece == W_Rook 
-        || piece == B_Rook 
-        || piece == W_Queen 
-        || piece == B_Queen)
-    {
-        ray = ROOK_MOVE_CACHE[index][0];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~ROOK_MOVE_CACHE[bitscanForward(overlaps)][0];
-        }
-        ray = ROOK_MOVE_CACHE[index][1];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~ROOK_MOVE_CACHE[bitscanForward(overlaps)][1];
-        }
-        ray = ROOK_MOVE_CACHE[index][2];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~ROOK_MOVE_CACHE[bitscanReverse(overlaps)][2];
-        }
-        ray = ROOK_MOVE_CACHE[index][3];
-        overlaps = ray & occupants;
-        result |= ray;
-        if (overlaps) {
-            result &= ~ROOK_MOVE_CACHE[bitscanReverse(overlaps)][3];
-        }
-        result &= ~friendlies; //remove friendlies
-    } else if (piece == W_Knight || piece == B_Knight) {
-        ray = KNIGHT_MOVE_CACHE[index];
-        result |= ray;
-        result &= ~friendlies; //remove friendlies
-    } else if (piece == W_King || piece == B_King) {
-        ray = KING_MOVE_CACHE[index];
-        result |= ray;
-        result &= ~friendlies; //remove friendlies
 
-        //add castling (won't work for 960 but should stay somewhat general)
-        //make sure can castle in direction
-        //make sure in between is empty
-        //make sure not out of check
-        //make sure not through check
-       
-        if (!isInCheck(color)) { //is not out of check
-            PieceType myKing = piece;
-            size_t myLongIndex = B_LONG_INDEX;
-            size_t myShortIndex = B_SHORT_INDEX;
-            if (myKing == W_King) {
-                myLongIndex = W_LONG_INDEX;
-                myShortIndex = W_SHORT_INDEX;
-            }
-            if (boardState[myLongIndex]) { //is allowed
-                if (!(CASTLE_LONG_SQUARES[color] & occupants)) { //in-between is empty
-                    bool throughCheck = false;
-                    for (u64 v : bitscanAll(CASTLE_LONG_KING_SLIDE[color])) { //is not sliding thru check
-                        bitboard[myKing] = v;
-                        if (_pieceUnderAttack(color, bitboard[myKing])) {
-                            throughCheck = true;
-                        }
-                    }
-                    bitboard[myKing] = kingStartingPositions[color]; //restore king bitboard
-                    if (!throughCheck) {
-                        _moveset.push_back(
-                            Move::SpecialMove(
-                                MoveType::CastleLong, piece, index64, CASTLE_LONG_KING_DEST[color]
-                            )
-                        );
-                    }
-                }
-            }
-            if (boardState[myShortIndex]) { //is allowed
-                if (!(CASTLE_SHORT_SQUARES[color] & occupants)) { //in-between is empty
-                    bool throughCheck = false;
-                    for (u64 v : bitscanAll(CASTLE_SHORT_KING_SLIDE[color])) { //is not sliding thru check
-                        bitboard[myKing] = v;
-                        if (_pieceUnderAttack(color, bitboard[myKing])) {
-                            throughCheck = true;
-                        }
-                    }
-                    bitboard[myKing] = kingStartingPositions[color]; //restore king bitboard
-                    if (!throughCheck) {
-                        _moveset.push_back(
-                            Move::SpecialMove(
-                                MoveType::CastleShort, piece, index64, CASTLE_SHORT_KING_DEST[color]
-                            )
-                        );
-                    }
-                }
-            }
-        }
+    ray = ROOK_MOVE_CACHE[index][0];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~ROOK_MOVE_CACHE[bitscanForward(overlaps)][0];
     }
-    if (piece == W_Pawn || piece == B_Pawn) {
-        u64 captures = PAWN_CAPTURE_CACHE[index][color];
-        u64 forward1 = PAWN_MOVE_CACHE[index][color];
-        result |= captures & enemies; //plus en passant sqaure
-        if (color == turn() && boardState[EN_PASSANT_INDEX] >= 0) {
-            u64 epSquare = u64FromIndex(boardState[EN_PASSANT_INDEX]);
-            if (captures & epSquare) {
-                _moveset.push_back(
-                    Move::SpecialMove(
-                        MoveType::EnPassant, piece, index64, epSquare
-                    )
-                );
-            }
-        }
-        if (!(forward1 & occupants)) { //if one forward is empty
-            result |= forward1;
-            if (
-                (piece == W_Pawn && u64ToRow(index64) == 1) ||
-                (piece == B_Pawn && u64ToRow(index64) == 6)
-            ) {
-                u64 forward2 = PAWN_DOUBLE_CACHE[index][color];
-                if (!((forward1 | forward2) & occupants)) { //two forward are empty
-                    _moveset.push_back(
-                        Move::DoublePawnMove(
-                            piece, index64, forward2
-                        )
-                    );
-                }
-            }
-        }
-        if (piece == W_Pawn && u64ToRow(index64) == 6) {
-            //promotions White
-            for (u64 dest : bitscanAll(result)) {
-                for (int prom = W_Knight; prom < W_Knight + 4; prom++) {
-                    _moveset.push_back(
-                        Move::PromotionMove(
-                            piece, index64, dest, prom
-                        )
-                    );
-                }
-            }
-        } else if (piece == B_Pawn && u64ToRow(index64) == 1) {
-            //promotions Black
-            for (u64 dest : bitscanAll(result)) {
-                for (int prom = B_Knight; prom < B_Knight + 4; prom++) {
-                    _moveset.push_back(
-                        Move::PromotionMove(
-                            piece, index64, dest, prom
-                        )
-                    );
-                }
-            }
-        } else {
-            //normal pawn moves
-            for (u64 dest : bitscanAll(result)) {
-                _moveset.push_back(
-                    Move::DefaultMove(
-                        piece, index64, dest
-                    )
-                );
-            }
-        }
-    } else {
-        //pull out from result
-        for (u64 dest : bitscanAll(result)) {
-            _moveset.push_back(
-                Move::DefaultMove(
-                    piece, index64, dest
-                )
-            );
-        }
+    ray = ROOK_MOVE_CACHE[index][1];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~ROOK_MOVE_CACHE[bitscanForward(overlaps)][1];
     }
-    return true;
+    ray = ROOK_MOVE_CACHE[index][2];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~ROOK_MOVE_CACHE[bitscanReverse(overlaps)][2];
+    }
+    ray = ROOK_MOVE_CACHE[index][3];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~ROOK_MOVE_CACHE[bitscanReverse(overlaps)][3];
+    }
+    result &= ~friendlies; //remove friendlies
+    return result;
+}
+
+u64 Board::_bishopAttacks(u64 index64, Color color) {
+    //given a color bishop at index64
+    u64 friendlies = occupancy(color);
+    u64 enemies = occupancy(flipColor(color));
+    u64 occupants = friendlies | enemies;
+    int index = u64ToIndex(index64);
+    u64 ray = 0;
+    u64 result = 0;
+    u64 overlaps = 0;
+
+    ray = BISHOP_MOVE_CACHE[index][0];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~BISHOP_MOVE_CACHE[bitscanForward(overlaps)][0];
+    }
+    ray = BISHOP_MOVE_CACHE[index][1];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~BISHOP_MOVE_CACHE[bitscanForward(overlaps)][1];
+    }
+    ray = BISHOP_MOVE_CACHE[index][2];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~BISHOP_MOVE_CACHE[bitscanReverse(overlaps)][2];
+    }
+    ray = BISHOP_MOVE_CACHE[index][3];
+    overlaps = ray & occupants;
+    result |= ray;
+    if (overlaps) {
+        result &= ~BISHOP_MOVE_CACHE[bitscanReverse(overlaps)][3];
+    }
+    result &= ~friendlies; //remove friendlies
+
+    return result;
 }
 
 u64 Board::occupancy(Color color) {
@@ -1188,21 +1018,7 @@ u64 Board::occupancy() {
 }
 
 std::vector<Move> Board::legalMoves() {
-    if (!_legalMovesDirty) {
-        return _legalMovesCache;
-    }
-    _legalMovesCache.clear();
-    resetMoveIterator();
-    _legalMovesDirty = false;
-    while (true) {
-        Move mv = nextMove();
-        if (mv.moveType != MoveType::END) {
-            _legalMovesCache.push_back(mv);
-        } else {
-            break;
-        }
-    }
-    return _legalMovesCache;
+
 }
 
 Color Board::turn() {
@@ -1291,9 +1107,9 @@ void Board::loadPosition(PieceType* piecelist, Color turn, int epIndex, int wlon
 
     stack.clear();
 
-    resetMoveIterator();
-    
-    _resetLegalMovesCache();
+
+    _hasGeneratedMoves = false;
+    _generatePseudoLegal();
 
     _threefoldFlag = false;
     _threefoldMap.clear();

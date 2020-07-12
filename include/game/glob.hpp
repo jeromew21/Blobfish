@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <array>
 #include <random>
 #include <sstream>
 #include <iterator>
@@ -61,14 +62,12 @@ void dump64(u64 x);
 
 bool inBounds(int y, int x);
 
-std::string raw_input(const std::string& message);
-std::string raw_input();
-
 int bitscanForward(u64 x);
 int bitscanReverse(u64 x);
 int hadd(u64 x);
 
 std::vector<u64> bitscanAll(u64 x); //hotspot
+std::array<u64, 64> bitscanAll(u64 x, int &outsize); //hotspot
 
 int rand100();
 void srand100(int seed);

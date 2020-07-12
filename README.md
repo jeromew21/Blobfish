@@ -50,4 +50,7 @@ r5k1/p1pr1p1p/bp1p1Pp1/8/2P4P/1PN1R3/P1P2P2/2KR4 b - - 3 7
 - white is in big trouble: threats of back rank, can't capture bishop bc of knight fork. all moves probably losing 
 
 8/Q4p1p/6k1/1p6/8/2q2P2/P4P1P/4K3 w - - 1 35
-- repeated position issues?
+- repeated position issues? (resolved i think)
+
+r4rk1/1pp2p1p/p1b1pPp1/4N3/4P3/2N4Q/PPPq1bPP/R6K b - - 1 1
+- trouble defending mate threat (likely issue with hash table leading to not enough positions searched)

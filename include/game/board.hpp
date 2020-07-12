@@ -12,19 +12,12 @@ void initializeZobrist();
 class Board
 {
   private:
-    std::vector<PieceIndexTuple> _pieceLocations; //update on resetMoveIterator
-    void _findPieceLocations();
-    std::vector<Move> _moveset; //for lazy generator
-    size_t _pieceIndex; //which piece are we on?
-    size_t _movesetIndex; //which index within the current moveset are we on?
-    bool _nextMoveset(); //grab the next one
-    bool _pieceUnderAttack(Color color, u64 pieceBitboard);
-    bool _legalMovesDirty;
-    std::vector<Move> _legalMovesCache;
+    bool _hasGeneratedMoves;
+    std::vector<Move> _quietMoveBuffer;
+    std::vector<Move> _tacticalMoveBuffer;
 
     std::unordered_set<u64> _threefoldMap;
     bool _threefoldFlag;
-
 
     //incremental update zobrist methods
     void _removePiece(PieceType p, u64 location);
@@ -36,9 +29,24 @@ class Board
 
     u64 _zobristHash;
 
+    u64 _attackers(u64 target); //return a set that attack the target
+    u64 _attackers(u64 target, Color mask); //return a set of pieces that attack the target
+    PieceType _leastValuablePiece(u64 sqset, Color color); //returns the least valuable piece of color color in sqset
+
+    void _generatePseudoLegal();
+
+    u64 _bishopAttacks(u64 index64, Color color);
+    u64 _rookAttacks(u64 index64, Color color);
+    u64 _knightAttacks(u64 index64, Color color);
+    u64 _kingAttacks(u64 index64, Color color);
+    u64 _pawnAttacks(u64 index64, Color color);
+    u64 _pawnMoves(u64 index64, Color color);
+
   public:
     BoardStateStack stack;
     u64 bitboard[12];
+    u64 pieceAttacks[12]; //pseudolegal
+    u64 pieceMoves[12]; //pseudolegal
 
     u64 rookStartingPositions[2][2];
     u64 kingStartingPositions[2];
@@ -47,20 +55,21 @@ class Board
     u64 occupancy();
     u64 occupancy(Color color); //COSTLY????
 
-    void resetMoveIterator();
-    Move nextMove(); //lazy generator
+    int see(u64 src, u64 dest, PieceType attacker, PieceType targetPiece);
 
+    //shortcut move gen
+    void genereateUncheckMoves();
 
     //Important stuff
-    std::vector<Move> legalMoves();
+    void generateLegalMoves();
+    std::vector<Move> legalMoves(); // calls generate
     Color turn();
     u64 zobrist();
 
     bool isTerminal();
 
-
     //costly calls
-    bool isInCheck(Color color);
+    int isInCheck(Color color); //0, 1, or 2
     PieceType pieceAt(u64 space);
     int material(Color color);
     int material();
@@ -68,7 +77,6 @@ class Board
     BoardStatus status();
   
     //STATE CHANGERS
-    void _resetLegalMovesCache();
     void reset();
     void makeMove(Move mv);
     void makeMove(Move mv, bool dirty);

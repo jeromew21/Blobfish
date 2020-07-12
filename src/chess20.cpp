@@ -42,10 +42,10 @@ class UCIInterface {
                } //else: same move as last layer
                break;
             } 
-            if (score > INTMAX || score < INTMIN) {
+            if (score >= INTMAX || score <= INTMIN) {
                bestMove = calcMove;
                int y = (int) ceil( (double) depth / 2.0 );
-               if (score < INTMIN) {
+               if (score <= INTMIN) {
                   y *= -1;
                }
                sendCommand("info score mate " + std::to_string(y));
@@ -265,12 +265,18 @@ int main()
    //srand100(65634536);
    srand100(13194);
 
+   Board b;
+   b.loadPosition("r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3");
+   dump64(b.pieceAttacks[W_Queen]);
+
+   /*
    {
       UCIInterface interface;
       for (std::string command; std::getline(std::cin, command);) {
          interface.recieveCommand(command);
       }
    }
+   */
 
    return 0;
 }

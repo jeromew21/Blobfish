@@ -74,10 +74,10 @@ int AI::evaluation(Board &board) { //positive good for white, negative for black
     score -= mcblack;
 
     if (status == BoardStatus::WhiteWin) {
-        return INTMAX + 1;
+        return INTMAX;
     }
     if (status == BoardStatus::BlackWin) {
-        return INTMIN - 1;
+        return INTMIN;
     }
     return score;
 }
@@ -98,6 +98,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
     auto moves = board.legalMoves();
     orderMoves(board, moves);
     int alpha = INTMIN;
+    Move chosen = moves[moves.size() - 1]; //PV-move
 
     //order moves
     auto search = table.find(node);
@@ -113,14 +114,18 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
                     break;
                 }
             }
+            chosen = moves[moves.size() - 1];
         }
+    } else {
+        node.bestMove = chosen; //not in table, so change it
+        table.insert(node, alpha);
     }
-    Move chosen = moves[moves.size() - 1]; //PV-move
     node.bestMove = chosen; //not in table, so change it
 
     int beta = INTMAX;
     outscore = alpha;
-    
+
+    bool raisedAlpha = false;
     
     bool pvFlag = true;
     auto start = std::chrono::high_resolution_clock::now();
@@ -139,6 +144,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
         } //here bc if AB call stopped, it won't be full search
 
         if (score > alpha) {
+            raisedAlpha = true;
             alpha = score;
             chosen = mv;
             outscore = alpha;
@@ -150,6 +156,13 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
             sendPV(board, depth, count, alpha, ms);
             sendCommand("info hashfull " + std::to_string(table.ppm()));
         }
+    }
+    if (!raisedAlpha) {
+        table.insert(node, alpha);
+        auto stop = std::chrono::high_resolution_clock::now(); 
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start); //or milliseconds
+        int ms = duration.count();
+        sendPV(board, depth, count, alpha, ms);
     }
     return chosen;
 }

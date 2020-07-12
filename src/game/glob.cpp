@@ -141,6 +141,24 @@ int hadd(u64 x) { //checked, should work
    return count;
 }
 
+std::array<u64, 64> bitscanAll(u64 x, int &outsize) {
+    std::array<u64, 64> result;
+    int count = 0;
+    u64 mask = 1;
+    int i = 0;
+    while (i < 64) {
+        u64 test = x & mask;
+        if (test) {
+            result[count] = mask;
+            count++;
+            outsize = count;
+        }
+        mask = mask << 1;
+        i++;
+    }
+    return result;
+}
+
 std::vector<u64> bitscanAll(u64 x) {
     std::vector<u64> result;
     u64 mask = 1;
@@ -197,26 +215,11 @@ u64 u64FromPair(int r, int c) {
 }
 
 u64 u64FromIndex(int i) { //fixed, should work
-    if (i > 63 || i < 0) {
-        debugLog("bad index");    
-        throw;
-    }
     return ((u64) 1) << i;
 }
 
 std::string yesorno(bool b) {
     return b ? "yes" : "no";
-}
-
-std::string raw_input(const std::string& message) {
-    std::string result;
-    std::cout << message;
-    getline(std::cin, result);
-    return result;
-}
-
-std::string raw_input() {
-    return raw_input("");
 }
 
 std::vector<std::string> tokenize(std::string instring) {
