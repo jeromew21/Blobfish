@@ -13,8 +13,13 @@ class Board
 {
   private:
     bool _hasGeneratedMoves;
+    std::vector<PieceType> _moverBuffer[2];
+    std::vector<u64> _srcBuffer[2];
+    std::vector<u64> _destBuffer[2];
+
     std::vector<Move> _quietMoveBuffer;
     std::vector<Move> _tacticalMoveBuffer;
+    std::vector<Move> _legalMovesBuffer;
 
     std::unordered_set<u64> _threefoldMap;
     bool _threefoldFlag;
@@ -29,9 +34,11 @@ class Board
 
     u64 _zobristHash;
 
-    u64 _attackers(u64 target); //return a set that attack the target
-    u64 _attackers(u64 target, Color mask); //return a set of pieces that attack the target
+    u64 _isUnderAttack(u64 target); //return a set that attack the target
+    u64 _isUnderAttack(u64 target, Color byWho); //return a set of pieces that attack the target
     PieceType _leastValuablePiece(u64 sqset, Color color); //returns the least valuable piece of color color in sqset
+
+    std::vector<PieceType> _attackers(u64 target, Color byWho);
 
     void _generatePseudoLegal();
 
@@ -42,11 +49,16 @@ class Board
     u64 _pawnAttacks(u64 index64, Color color);
     u64 _pawnMoves(u64 index64, Color color);
 
+    u64 _rookRay(u64 origin, int direction, u64 mask);
+    u64 _bishopRay(u64 origin, int direction, u64 mask);
+
   public:
     BoardStateStack stack;
     u64 bitboard[12];
-    u64 pieceAttacks[12]; //pseudolegal
-    u64 pieceMoves[12]; //pseudolegal
+    u64 pieceAttacks[12]; //pseudolegal attack moves
+    u64 pieceMoves[12]; //pseudolegal all moves
+
+    bool verifyLegal(Move &mv);
 
     u64 rookStartingPositions[2][2];
     u64 kingStartingPositions[2];
@@ -57,8 +69,10 @@ class Board
 
     int see(u64 src, u64 dest, PieceType attacker, PieceType targetPiece);
 
+    int mobility(Color color);
+
     //shortcut move gen
-    void genereateUncheckMoves();
+    std::vector<Move> produceUncheckMoves();
 
     //Important stuff
     void generateLegalMoves();
@@ -67,9 +81,9 @@ class Board
     u64 zobrist();
 
     bool isTerminal();
+    bool isCheck();
 
     //costly calls
-    int isInCheck(Color color); //0, 1, or 2
     PieceType pieceAt(u64 space);
     int material(Color color);
     int material();
@@ -78,10 +92,8 @@ class Board
   
     //STATE CHANGERS
     void reset();
-    void makeMove(Move mv);
-    void makeMove(Move mv, bool dirty);
+    void makeMove(Move &mv);
     void unmakeMove();
-    void unmakeMove(bool dirty);
     void loadPosition(PieceType* piecelist, Color turn, int epIndex, int wlong, int wshort, int blong, int bshort);
     void loadPosition(std::string fen);
 

@@ -147,7 +147,8 @@ class UCIInterface {
                   //play moves
                   for (int k = j+1; k < (int) tokens.size(); k++) {
                      auto mvtxt = tokens[k];
-                     board.makeMove(board.moveFromAlgebraic(mvtxt));
+                     Move mv = board.moveFromAlgebraic(mvtxt);
+                     board.makeMove(mv);
                   }
                }
             }
@@ -266,8 +267,8 @@ int main()
    srand100(13194);
 
    Board b;
-   b.loadPosition("r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3");
-   dump64(b.pieceAttacks[W_Queen]);
+   b.loadPosition("7k/8/8/4r3/8/2Kr4/8/8 w - - 0 1");
+   b.dump(true);
 
    /*
    {

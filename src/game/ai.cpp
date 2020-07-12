@@ -56,20 +56,8 @@ int AI::evaluation(Board &board) { //positive good for white, negative for black
 
     //mobility
     //naive solution: make a null move
-    int mcwhite = 0;
-    int mcblack = 0;
-    static Move nullmv = Move::NullMove();
-    if (board.turn() == White) {
-        mcwhite = board.legalMoves().size();
-        board.makeMove(nullmv);
-        mcblack = board.legalMoves().size();
-        board.unmakeMove();
-    } else {
-        mcblack = board.legalMoves().size();
-        board.makeMove(nullmv);
-        mcwhite = board.legalMoves().size();
-        board.unmakeMove();
-    }
+    int mcwhite = board.mobility(White);
+    int mcblack = board.mobility(Black);
     score += mcwhite;
     score -= mcblack;
 
@@ -256,21 +244,6 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<
 
 void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
     //put captures first
-    u64 piecemap = board.occupancy();
-    int size = mvs.size();
-
-    for (int j = 0; j < size; j++) {
-        Move mv = mvs[j];
-        if (mvs[j].dest & piecemap) {
-            mvs.erase(mvs.begin() + j);
-            mvs.push_back(mv);
-            j--;
-            size--;
-        }
-        if (j > size) {
-            break;
-        }
-    }
 }
 
 
