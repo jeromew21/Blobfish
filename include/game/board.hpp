@@ -55,6 +55,7 @@ class Board
   public:
     BoardStateStack stack;
     u64 bitboard[12];
+    
     u64 pieceAttacks[12]; //pseudolegal attack moves
     u64 pieceMoves[12]; //pseudolegal all moves
 

@@ -934,7 +934,6 @@ void Board::_setEpSquare(int sq) {
     boardState[EN_PASSANT_INDEX] = sq;
 }
 
-
 void Board::unmakeMove() {
     //state changer
     auto threefoldCount = _threefoldMap.find(_zobristHash);
@@ -994,6 +993,9 @@ void Board::unmakeMove() {
     _setCastlingPrivileges(Black, node.data[B_LONG_INDEX], node.data[B_SHORT_INDEX]);
 
     stack.pop();
+
+    _generatePseudoLegal(); //use a stack probably
+    _hasGeneratedMoves = false;
 }
 
 void Board::dump() {
@@ -1068,7 +1070,7 @@ void Board::dump(bool debug) {
         }
         std::cout << "\nLegal: ";
         for (Move &mv : moves) {
-            std::cout << moveToAlgebraic(mv) << " ";
+            std::cout << moveToExtAlgebraic(mv) << " ";
         }
         std::cout << "\nOut-Of-Check: ";
         for (Move &mv : produceUncheckMoves()) {
@@ -1162,7 +1164,6 @@ u64 Board::_bishopRay(u64 origin, int direction, u64 mask) {
     }
     return ray;
 }
-
 
 u64 Board::_rookAttacks(u64 index64, Color color) {
     //given a color rook at index64
@@ -1276,7 +1277,6 @@ bool Board::verifyLegal(Move &mv) {
     bool legal = true;
     Color myColor = turn();
     PieceType myKing = myColor == White ? W_King : B_King;
-    Color flip = flipColor(myColor);
     //check that king is not moving into check
     //1. Edit bitboards
     PieceType destFormer = Empty;
@@ -1310,7 +1310,7 @@ bool Board::verifyLegal(Move &mv) {
     if (mv.moveType == MoveType::Promotion) {
         bitboard[mv.promotion] |= mv.dest;
     } else {
-        bitboard[mv.mover] = mv.dest;
+        bitboard[mv.mover] |= mv.dest;
     }
 
 
@@ -1353,35 +1353,32 @@ bool Board::verifyLegal(Move &mv) {
     //3. Revert bitboards
 
     //move piece to old src
-    bitboard[mv.mover] = mv.src;
+    bitboard[mv.mover] |= mv.src;
 
     //mask out dest
     bitboard[mv.mover] &= ~mv.dest;
     if (mv.moveType == MoveType::Promotion) {
-        bitboard[mv.promotion] &= mv.dest;
+        bitboard[mv.promotion] &= ~mv.dest;
     }
 
     //restore dest
     if (mv.moveType == MoveType::EnPassant) { //instead of restoring at capture location, restore one above
         if (mv.mover == W_Pawn) {
-            bitboard[B_Pawn] = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
+            bitboard[B_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
         } else {
-            bitboard[W_Pawn] = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
+            bitboard[W_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
         }
     } else if (destFormer != Empty) {
-        bitboard[destFormer] = mv.dest;
+        bitboard[destFormer] |= mv.dest;
     }
-    //pins: if a piece is on a ray, then it cannot move.  
-    //ray out from king. see what happens...
     return legal;
 }
 
 void Board::generateLegalMoves() {
+    _legalMovesBuffer.clear();
     _quietMoveBuffer.clear();
     _tacticalMoveBuffer.clear();
-    _hasGeneratedMoves = true;
     Color c = turn();
-    PieceType myKing = c == White ? W_King : B_King;
     int size = _moverBuffer[c].size();
     u64 occ = occupancy();
     for (int i = 0; i < size; i++) {
@@ -1434,8 +1431,7 @@ void Board::generateLegalMoves() {
             }
         }
     }
-    _legalMovesBuffer.clear();
-    _legalMovesBuffer.reserve(_quietMoveBuffer.size() + _tacticalMoveBuffer.size()); // preallocate memory
+    _legalMovesBuffer.reserve(_quietMoveBuffer.size() + _tacticalMoveBuffer.size() + 2); // preallocate memory
     for (Move &mv : _quietMoveBuffer) {
         if (verifyLegal(mv)) {
             _legalMovesBuffer.push_back(mv);
@@ -1447,6 +1443,35 @@ void Board::generateLegalMoves() {
         }
     }
     //add castling
+    if (!isCheck()) {
+        PieceType myKing = c == White ? W_King : B_King;
+        size_t myLongIndex = B_LONG_INDEX;
+        size_t myShortIndex = B_SHORT_INDEX;
+        if (myKing == W_King) {
+            myLongIndex = W_LONG_INDEX;
+            myShortIndex = W_SHORT_INDEX;
+        }
+        Color opponent = flipColor(c);
+        if (boardState[myLongIndex]) { //is allowed
+            if (!(CASTLE_LONG_SQUARES[c] & occ)) { //in-between is empty
+                if (!_isUnderAttack(CASTLE_LONG_KING_SLIDE[c], opponent)) {
+                    Move mv = Move::SpecialMove(MoveType::CastleLong, myKing, bitboard[myKing], CASTLE_LONG_KING_DEST[c]);
+                    _tacticalMoveBuffer.push_back(mv);
+                    _legalMovesBuffer.push_back(mv);
+                }
+            }
+        }
+        if (boardState[myShortIndex]) { //is allowed
+            if (!(CASTLE_SHORT_SQUARES[c] & occ)) { //in-between is empty
+                if (!_isUnderAttack(CASTLE_SHORT_KING_SLIDE[c], opponent)) {
+                    Move mv = Move::SpecialMove(MoveType::CastleShort, myKing, bitboard[myKing], CASTLE_SHORT_KING_DEST[c]);
+                    _tacticalMoveBuffer.push_back(mv);
+                    _legalMovesBuffer.push_back(mv);
+                }
+            }
+        }
+    }
+    _hasGeneratedMoves = true;
 }
 
 std::vector<Move> Board::legalMoves() {
@@ -1454,7 +1479,7 @@ std::vector<Move> Board::legalMoves() {
         return _legalMovesBuffer;
     } else {
         generateLegalMoves();
-        return legalMoves();
+        return _legalMovesBuffer;
     }
 }
 
@@ -1522,7 +1547,6 @@ void Board::loadPosition(std::string fen) {
 
     loadPosition(piecelist, t, epIndex, wlong, wshort, blong, bshort);
 }
-
 
 void Board::loadPosition(PieceType* piecelist, Color turn, int epIndex, int wlong, int wshort, int blong, int bshort) {
     //set board, bitboards

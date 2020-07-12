@@ -84,6 +84,9 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
     int count = 1;
 
     auto moves = board.legalMoves();
+
+    board.dump(true);
+
     orderMoves(board, moves);
     int alpha = INTMIN;
     Move chosen = moves[moves.size() - 1]; //PV-move

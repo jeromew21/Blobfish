@@ -250,6 +250,7 @@ class UCIInterface {
             */
            exit(0);
          }
+         board.dump(true);
       }
 
       ~UCIInterface()
@@ -266,18 +267,13 @@ int main()
    //srand100(65634536);
    srand100(13194);
 
-   Board b;
-   b.loadPosition("7k/8/8/4r3/8/2Kr4/8/8 w - - 0 1");
-   b.dump(true);
-
-   /*
    {
       UCIInterface interface;
       for (std::string command; std::getline(std::cin, command);) {
          interface.recieveCommand(command);
       }
    }
-   */
+   
 
    return 0;
 }

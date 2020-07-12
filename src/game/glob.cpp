@@ -144,7 +144,6 @@ int hadd(u64 x) { //checked, should work
 std::array<u64, 64> bitscanAll(u64 x, int &outsize) {
     std::array<u64, 64> result;
     int count = 0;
-    outsize = 0;
     u64 mask = 1;
     int i = 0;
     while (i < 64) {
@@ -152,11 +151,12 @@ std::array<u64, 64> bitscanAll(u64 x, int &outsize) {
         if (test) {
             result[count] = mask;
             count++;
-            outsize = count;
         }
         mask = mask << 1;
         i++;
     }
+    outsize = count;
+
     return result;
 }
 
