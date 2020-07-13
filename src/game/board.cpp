@@ -279,7 +279,7 @@ int Board::material(Color color) {
 
 void Board::_generatePseudoLegal() {
     int size = 0;
-    std::array<u64, 64> arr;
+    std::array<u64, 32> arr;
     for (int i = 0; i < 12; i++) {
         pieceAttacks[i] = 0;
         pieceMoves[i] = 0;
@@ -406,6 +406,12 @@ void Board::_generatePseudoLegal() {
         _srcBuffer[Black].push_back(arr[i]);
         _destBuffer[Black].push_back(mvs);
     }
+
+    _pseudoStack.push_back(PseudoLegalData(
+        _moverBuffer[White], _moverBuffer[Black],
+        _srcBuffer[White], _srcBuffer[Black],
+        _destBuffer[White], _destBuffer[Black], 
+        pieceAttacks, pieceMoves));
 }
 
 int Board::mobility(Color c) {
@@ -459,7 +465,6 @@ std::vector<PieceType> Board::_attackers(u64 target, Color byWho) {
     return result;
 }
 
-
 bool Board::isCheck() {
     Color color = turn();
     u64 kingBB = color == White ? bitboard[W_King] : bitboard[B_King];
@@ -478,7 +483,7 @@ std::vector<Move> Board::produceUncheckMoves() {
     int checkCount = attackers.size();
     //can move away from check
     int count = 0;
-    std::array<u64, 64> arr;
+    std::array<u64, 32> arr;
     arr = bitscanAll(pieceMoves[myKing], count);
     for (int k = 0; k < count; k++) {
         Move mv = Move::DefaultMove(myKing, kingBB, arr[k]);
@@ -552,7 +557,7 @@ std::vector<Move> Board::produceUncheckMoves() {
             u64 src = _srcBuffer[c][i];
             u64 destMap = _destBuffer[c][i];
             int count = 0;
-            std::array<u64, 64> arr;
+            std::array<u64, 32> arr;
             arr = bitscanAll(destMap, count);
             for (int k = 0; k < count; k++) {
                 u64 dest = arr[k];
@@ -586,11 +591,8 @@ std::vector<Move> Board::produceUncheckMoves() {
     return result;
 }
 
-
 PieceType Board::pieceAt(u64 space) {
     //temporary solution
-    //COSTLY: DO NOT CALL UNLESS ABSOLUTELY NECESSARY
-    //future: hold cached mailbox board repr
     for (PieceType i = 0; i < Empty; i++) {
         if (space & bitboard[i]) {
             return i;
@@ -776,25 +778,15 @@ void Board::makeMove(Move &mv) {
             if (mv.mover == W_Pawn) {
                 u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
                 _removePiece(B_Pawn, capturedPawn);
-                mv.destFormer = B_Pawn;
             } if (mv.mover == B_Pawn) {
                 u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
                 _removePiece(W_Pawn, capturedPawn);
-                mv.destFormer = W_Pawn;
             }
         } else {
             //check if new location has a piece...
             //here we update the move object w/ capture data, so we're careful to return the modified move object.
-            if (mv.dest & occupancy()) {
-                for (int i = 0; i < 12; i++) {
-                    if (i != mv.mover && bitboard[i] & mv.dest) {
-                        mv.destFormer = i; //add capture data to move
-                        _removePiece(i, mv.dest);
-                        break;
-                    }
-                }
-            } else {
-                mv.destFormer = Empty;
+            if (mv.destFormer != Empty) {
+                _removePiece(mv.destFormer, mv.dest);
             }
         }
         
@@ -994,8 +986,20 @@ void Board::unmakeMove() {
 
     stack.pop();
 
-    _generatePseudoLegal(); //use a stack probably
     _hasGeneratedMoves = false;
+    _pseudoStack.pop_back(); //pop current
+
+    PseudoLegalData pdata = _pseudoStack.back(); //obtain old
+    _moverBuffer[White].assign(pdata.moverBuffer[White].begin(), pdata.moverBuffer[White].end());
+    _moverBuffer[Black].assign(pdata.moverBuffer[Black].begin(), pdata.moverBuffer[Black].end());
+    _srcBuffer[White].assign(pdata.srcBuffer[White].begin(), pdata.srcBuffer[White].end());
+    _srcBuffer[Black].assign(pdata.srcBuffer[Black].begin(), pdata.srcBuffer[Black].end());
+    _destBuffer[White].assign(pdata.destBuffer[White].begin(), pdata.destBuffer[White].end());
+    _destBuffer[Black].assign(pdata.destBuffer[Black].begin(), pdata.destBuffer[Black].end());
+    for (int i = 0; i < 12; i++) {
+        pieceAttacks[i] = pdata.pieceAttacks[i];
+        pieceMoves[i] = pdata.pieceMoves[i];
+    }
 }
 
 void Board::dump() {
@@ -1070,7 +1074,11 @@ void Board::dump(bool debug) {
         }
         std::cout << "\nLegal: ";
         for (Move &mv : moves) {
-            std::cout << moveToExtAlgebraic(mv) << " ";
+            std::cout << moveToExtAlgebraic(mv);
+            if (mv.destFormer != Empty) {
+                std::cout << " see: " << see(mv.src, mv.dest, mv.mover, mv.destFormer);
+            }
+            std::cout << "\n";
         }
         std::cout << "\nOut-Of-Check: ";
         for (Move &mv : produceUncheckMoves()) {
@@ -1273,14 +1281,86 @@ u64 Board::occupancy() {
     return occupancy(White) | occupancy(Black);
 }
 
+PieceType Board::_leastValuablePiece(u64 sqset, Color color, u64 &outposition) {  //returns the least valuable piece of color color in sqset
+    PieceType s = pieceIndexFromColor(color);
+    for (PieceType p = s; p < s + 6; p++) {
+        u64 mask = bitboard[p] & sqset;
+        if (mask) {
+            outposition = u64FromIndex(bitscanForward(mask)); // pop out a position
+            return p;
+        }
+    }
+    outposition = 0;
+    return Empty;
+}
+
+u64 Board::_attackSet(u64 target, Color c) {
+    u64 result = 0;
+    for (int i = 0; i < _srcBuffer[c].size(); i++) {
+        if (_destBuffer[c][i] & target) {
+            result |= _srcBuffer[c][i];
+        }
+    }
+    return result;
+}
+
+u64 Board::_attackSet(u64 target) {
+    return _attackSet(target, White) | _attackSet(target, Black);
+}
+
+int Board::see(u64 src, u64 dest, PieceType attacker, PieceType targetPiece) {
+    Color color = colorOf(attacker);
+    u64 attackSet = _attackSet(dest);
+    u64 usedAttackers = src;
+    int scores[32];
+    int depth = 0;
+    scores[0] = MATERIAL_TABLE[targetPiece]; // first player is up by capturing
+    color = flipColor(color);
+    std::cout << "\nscores[" << depth << "] = " << scores[depth] << "\n";
+    PieceType piece = attacker; // piece at dest
+    while (true) {
+        depth++;
+        scores[depth] = MATERIAL_TABLE[piece] - scores[depth - 1]; //capture!
+        std::cout << "scores[" << depth << "] = " << scores[depth] << "\n";
+
+        if (max(-1*scores[depth - 1], scores[depth]) < 0) break;
+
+        //add x-ray or conditional attackers to attack set
+        //add pawns
+        for (u64 loc : bitscanAll(bitboard[W_Pawn])) {
+            if (PAWN_CAPTURE_CACHE[u64ToIndex(loc)][White] & dest) {
+                attackSet |= loc;
+            }
+        }
+        for (u64 loc : bitscanAll(bitboard[B_Pawn])) {
+            if (PAWN_CAPTURE_CACHE[u64ToIndex(loc)][Black] & dest) {
+                attackSet |= loc;
+            }
+        }
+
+        u64 attPos = 0;
+        attackSet = attackSet & ~usedAttackers; // remove attacker from attack set
+
+        piece = _leastValuablePiece(attackSet, color, attPos);
+        usedAttackers |= attPos;
+        if (piece == Empty) {
+            break;
+        }
+        color = flipColor(color);
+    }
+    while (--depth) {
+        scores[depth - 1] = -1*max(-1*scores[depth - 1], scores[depth]);
+    }
+    return scores[0];
+    //static exch eval for move ordering and quiescience pruning
+}
+
 bool Board::verifyLegal(Move &mv) {
     bool legal = true;
     Color myColor = turn();
     PieceType myKing = myColor == White ? W_King : B_King;
     //check that king is not moving into check
     //1. Edit bitboards
-    PieceType destFormer = Empty;
-
     //mask out mover
     bitboard[mv.mover] &= ~mv.src;
 
@@ -1288,21 +1368,13 @@ bool Board::verifyLegal(Move &mv) {
         if (mv.mover == W_Pawn) {
             u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
             bitboard[B_Pawn] &= ~capturedPawn;
-            destFormer = B_Pawn;
         } if (mv.mover == B_Pawn) {
             u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
             bitboard[W_Pawn] &= ~capturedPawn;
-            destFormer = W_Pawn;
         }
     } else {
-        if (mv.dest & occupancy()) {
-            for (int i = 0; i < 12; i++) {
-                if (i != mv.mover && bitboard[i] & mv.dest) {
-                    destFormer = i; //add capture data to move
-                    bitboard[i] &= ~mv.dest;
-                    break;
-                }
-            }
+        if (mv.destFormer != Empty) {
+            bitboard[mv.destFormer] &= ~mv.dest;
         }
     }
     
@@ -1368,8 +1440,8 @@ bool Board::verifyLegal(Move &mv) {
         } else {
             bitboard[W_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
         }
-    } else if (destFormer != Empty) {
-        bitboard[destFormer] |= mv.dest;
+    } else if (mv.destFormer != Empty) {
+        bitboard[mv.destFormer] |= mv.dest;
     }
     return legal;
 }
@@ -1386,7 +1458,7 @@ void Board::generateLegalMoves() {
         u64 src = _srcBuffer[c][i];
         u64 destMap = _destBuffer[c][i];
         int count = 0;
-        std::array<u64, 64> arr;
+        std::array<u64, 32> arr;
         arr = bitscanAll(destMap, count);
         for (int k = 0; k < count; k++) {
             u64 dest = arr[k];
@@ -1409,11 +1481,17 @@ void Board::generateLegalMoves() {
                 } else {
                     if (boardState[EN_PASSANT_INDEX] >= 0 && u64FromIndex(boardState[EN_PASSANT_INDEX]) == dest) {
                         Move mv = Move::SpecialMove(MoveType::EnPassant, mover, src, dest);
+                        if (mover == W_Pawn) {
+                            mv.destFormer = B_Pawn;
+                        } else {
+                            mv.destFormer = W_Pawn;
+                        }
                         _tacticalMoveBuffer.push_back(mv);
                     } else {
                         Move mv = Move::DefaultMove(mover, src, dest);
                         //check legality
                         if (occ & dest) {
+                            mv.destFormer = pieceAt(dest);
                             _tacticalMoveBuffer.push_back(mv);
                         } else {
                             _quietMoveBuffer.push_back(mv);
@@ -1424,6 +1502,7 @@ void Board::generateLegalMoves() {
                 Move mv = Move::DefaultMove(mover, src, dest);
                 //check legality
                 if (occ & dest) {
+                    mv.destFormer = pieceAt(dest);
                     _tacticalMoveBuffer.push_back(mv);
                 } else {
                     _quietMoveBuffer.push_back(mv);
@@ -1570,7 +1649,7 @@ void Board::loadPosition(PieceType* piecelist, Color turn, int epIndex, int wlon
     _setCastlingPrivileges(Black, blong, bshort);
 
     stack.clear();
-
+    _pseudoStack.clear();
 
     _hasGeneratedMoves = false;
     _generatePseudoLegal();

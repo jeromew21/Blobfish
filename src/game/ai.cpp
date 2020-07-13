@@ -9,22 +9,6 @@ void AI::init() {
     BACK_RANK[Black] = u64FromIndex(56) | u64FromIndex(57) | u64FromIndex(58) | u64FromIndex(59) | u64FromIndex(60) | u64FromIndex(61) | u64FromIndex(62) | u64FromIndex(63);
 }
 
-int AI::max(int i1, int i2) {
-    if (i1 > i2) {
-        return i1;
-    } else {
-        return i2;
-    }
-}
-
-int AI::min(int i1, int i2) {
-    if (i1 < i2) {
-        return i1;
-    } else {
-        return i2;
-    }
-}
-
 int AI::materialEvaluation(Board &board) {
     return board.material();
 }
@@ -84,8 +68,6 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
     int count = 1;
 
     auto moves = board.legalMoves();
-
-    board.dump(true);
 
     orderMoves(board, moves);
     int alpha = INTMIN;
@@ -210,10 +192,10 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<
             NodeType typ = found->first.nodeType;
             if (typ == NodeType::All) {
                 //upper bound, the exact score might be less.
-                beta = AI::min(beta, found->second);
+                beta = min(beta, found->second);
             } else if (typ == NodeType::Cut) {
                 //lower bound
-                alpha = AI::max(alpha, found->second);
+                alpha = max(alpha, found->second);
                 
             } else if (typ == NodeType::PV) {
                 return found->second;
@@ -274,10 +256,10 @@ int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<
             NodeType typ = found->first.nodeType;
             if (typ == NodeType::All) {
                 //upper bound, the exact score might be less.
-                beta = AI::min(beta, found->second);
+                beta = min(beta, found->second);
             } else if (typ == NodeType::Cut) {
                 //lower bound
-                alpha = AI::max(alpha, found->second);
+                alpha = max(alpha, found->second);
                 
             } else if (typ == NodeType::PV) {
                 return found->second;
@@ -311,7 +293,7 @@ int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<
     //MAKE SURE NOT IN CHECK??
     if (nullmove && !board.isInCheck(board.turn())) {
         board.makeMove(Move::NullMove());
-        int score = -1*AI::alphaBetaNega(board, AI::max(0, depth-2), -1*beta, -1*alpha, stop, count, false); //limit depth
+        int score = -1*AI::alphaBetaNega(board, max(0, depth-2), -1*beta, -1*alpha, stop, count, false); //limit depth
         board.unmakeMove();
         if (score >= beta) { //our move is better than beta, so this node is cut off
             node.nodeType = NodeType::Cut;

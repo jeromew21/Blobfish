@@ -54,3 +54,6 @@ r5k1/p1pr1p1p/bp1p1Pp1/8/2P4P/1PN1R3/P1P2P2/2KR4 b - - 3 7
 
 r4rk1/1pp2p1p/p1b1pPp1/4N3/4P3/2N4Q/PPPq1bPP/R6K b - - 1 1
 - trouble defending mate threat (likely issue with hash table leading to not enough positions searched)
+
+r1bq1rk1/ppppbppp/2n1p3/4P3/1nPP4/PQ3N2/1P1B1PPP/RN2KB1R b KQ - 0 8
+- loses knight, poor move ordering leading to not enough positions searched (best move is ordered last)

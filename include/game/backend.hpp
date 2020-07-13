@@ -21,6 +21,34 @@ struct BoardStateNode {
     Move mv;
 };
 
+struct PseudoLegalData {
+    std::vector<PieceType> moverBuffer[2];
+    std::vector<u64> srcBuffer[2];
+    std::vector<u64> destBuffer[2];
+
+    u64 pieceAttacks[12]; //pseudolegal attack moves
+    u64 pieceMoves[12];
+
+    PseudoLegalData(
+        std::vector<PieceType> mbw,
+        std::vector<PieceType> mbb,
+        std::vector<u64> sbw, 
+        std::vector<u64> sbb, 
+        std::vector<u64> dbw, 
+        std::vector<u64> dbb, 
+        u64* pa, u64* pm) {
+        moverBuffer[White].assign(mbw.begin(), mbw.end());
+        moverBuffer[Black].assign(mbb.begin(), mbb.end());
+        srcBuffer[White].assign(sbw.begin(), sbw.end());
+        srcBuffer[Black].assign(sbb.begin(), sbb.end());
+        destBuffer[White].assign(dbw.begin(), dbw.end());
+        destBuffer[Black].assign(dbb.begin(), dbb.end());
+        for (int i = 0; i < 12; i++) {
+            pieceAttacks[i] = pa[i];
+            pieceMoves[i] = pm[i];
+        }
+    }
+};
 
 class BoardStateStack
 {

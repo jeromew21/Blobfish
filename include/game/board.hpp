@@ -21,6 +21,8 @@ class Board
     std::vector<Move> _tacticalMoveBuffer;
     std::vector<Move> _legalMovesBuffer;
 
+    std::vector<PseudoLegalData> _pseudoStack;
+
     std::unordered_set<u64> _threefoldMap;
     bool _threefoldFlag;
 
@@ -36,9 +38,11 @@ class Board
 
     u64 _isUnderAttack(u64 target); //return a set that attack the target
     u64 _isUnderAttack(u64 target, Color byWho); //return a set of pieces that attack the target
-    PieceType _leastValuablePiece(u64 sqset, Color color); //returns the least valuable piece of color color in sqset
+    PieceType _leastValuablePiece(u64 sqset, Color color, u64 &outposition); //returns the least valuable piece of color color in sqset
 
     std::vector<PieceType> _attackers(u64 target, Color byWho);
+    u64 _attackSet(u64 target, Color c);
+    u64 _attackSet(u64 target);
 
     void _generatePseudoLegal();
 
@@ -55,7 +59,7 @@ class Board
   public:
     BoardStateStack stack;
     u64 bitboard[12];
-    
+
     u64 pieceAttacks[12]; //pseudolegal attack moves
     u64 pieceMoves[12]; //pseudolegal all moves
 
