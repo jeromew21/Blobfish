@@ -279,7 +279,7 @@ int Board::material(Color color) {
 
 void Board::_generatePseudoLegal() {
     int size = 0;
-    std::array<u64, 32> arr;
+    std::array<u64, 64> arr;
     for (int i = 0; i < 12; i++) {
         pieceAttacks[i] = 0;
         pieceMoves[i] = 0;
@@ -483,10 +483,13 @@ std::vector<Move> Board::produceUncheckMoves() {
     int checkCount = attackers.size();
     //can move away from check
     int count = 0;
-    std::array<u64, 32> arr;
+    std::array<u64, 64> arr;
     arr = bitscanAll(pieceMoves[myKing], count);
     for (int k = 0; k < count; k++) {
         Move mv = Move::DefaultMove(myKing, kingBB, arr[k]);
+        if (mv.dest & occ) {
+            mv.destFormer = pieceAt(mv.dest);
+        }
         if (verifyLegal(mv)) {
             result.push_back(mv);
         }
@@ -498,24 +501,6 @@ std::vector<Move> Board::produceUncheckMoves() {
         for (int j = 0; j < (int) _moverBuffer[flip].size(); j++) {
             if (_moverBuffer[flip][j] == checker && _destBuffer[flip][j] & kingBB) {
                 u64 target = _srcBuffer[flip][j]; // has to be the attacking one
-
-                //king can capture if the target is not guarded
-                if (pieceAttacks[myKing] & target) {
-                    if (!_isUnderAttack(target, flip)) {
-                        Move mv = Move::DefaultMove(myKing, kingBB, target);
-                        bool inFlag = false;
-                        for (Move &testmv : result) {
-                            if (testmv == mv) {
-                                inFlag = true;
-                                break;
-                            }
-                        }
-                        if (!inFlag) {
-                            result.push_back(mv);
-                        }
-                    }
-                }
-
                 //amend target with rayset
 
                 if (checker % 6 != W_Knight && checker % 6 != W_Pawn) {
@@ -523,33 +508,36 @@ std::vector<Move> Board::produceUncheckMoves() {
                         u64 ray = _rookRay(kingBB, d, occ);
                         if (target & ray) {
                             target |= ray;
-                            break;
                         }
                         ray = _bishopRay(kingBB, d, occ);
                         if (target & ray) {
                             target |= ray;
-                            break;
                         }
                     }
                 }
 
                 //find any of our pieces that can capture it
-                PieceType s = pieceIndexFromColor(color);
-                for (PieceType p = s; p < s + 5; p++) {
-                    for (int i = 0; i < (int) _moverBuffer[color].size(); i++) {
-                        if (_moverBuffer[color][i] == p && _destBuffer[color][i] & target) {
-                            for (u64 dest : bitscanAll(_destBuffer[color][i] & target)) {
-                                result.push_back(Move::DefaultMove(p, _srcBuffer[color][i], dest));
+                PieceType s0 = pieceIndexFromColor(color);
+                PieceType s1 = s0 + 4;
+                for (int i = 0; i < (int) _moverBuffer[color].size(); i++) {
+                    PieceType p = _moverBuffer[color][i];
+                    if ((p >= s0 && p <= s1) && _destBuffer[color][i] & target) {
+                        for (u64 dest : bitscanAll(_destBuffer[color][i] & target)) {
+                            Move mv = Move::DefaultMove(p, _srcBuffer[color][i], dest);
+                            if (mv.dest & occ) {
+                                mv.destFormer = pieceAt(mv.dest);
+                            }
+                            if (verifyLegal(mv)) {
+                                result.push_back(mv);
                             }
                         }
                     }
                 }
-                
                 break;
             }
         }
     } else if (checkCount == 0) {
-        //not in check but we st ill want to produce at least one move to prove stalemate.
+        //not in check but we st ill want to produce at least one move to disprove stalemate.
         Color c = color;
         for (int i = 0; i < (int) _moverBuffer[c].size(); i++) {
             Move mv = Move::NullMove();
@@ -557,7 +545,7 @@ std::vector<Move> Board::produceUncheckMoves() {
             u64 src = _srcBuffer[c][i];
             u64 destMap = _destBuffer[c][i];
             int count = 0;
-            std::array<u64, 32> arr;
+            std::array<u64, 64> arr;
             arr = bitscanAll(destMap, count);
             for (int k = 0; k < count; k++) {
                 u64 dest = arr[k];
@@ -582,6 +570,9 @@ std::vector<Move> Board::produceUncheckMoves() {
                 }
             }
             if (mv.moveType != MoveType::Null && verifyLegal(mv)) {
+                if (mv.dest & occ) {
+                    mv.destFormer = pieceAt(mv.dest);
+                }
                 result.push_back(mv);
                 break;
             }
@@ -1296,7 +1287,7 @@ PieceType Board::_leastValuablePiece(u64 sqset, Color color, u64 &outposition) {
 
 u64 Board::_attackSet(u64 target, Color c) {
     u64 result = 0;
-    for (int i = 0; i < _srcBuffer[c].size(); i++) {
+    for (int i = 0; i < (int)_srcBuffer[c].size(); i++) {
         if (_destBuffer[c][i] & target) {
             result |= _srcBuffer[c][i];
         }
@@ -1312,42 +1303,108 @@ int Board::see(u64 src, u64 dest, PieceType attacker, PieceType targetPiece) {
     Color color = colorOf(attacker);
     u64 attackSet = _attackSet(dest);
     u64 usedAttackers = src;
+    u64 occ = occupancy() & ~src; //"move" from src
+
     int scores[32];
     int depth = 0;
     scores[0] = MATERIAL_TABLE[targetPiece]; // first player is up by capturing
     color = flipColor(color);
-    std::cout << "\nscores[" << depth << "] = " << scores[depth] << "\n";
+    //std::cout << "\nscores[" << depth << "] = " << scores[depth] << "\n";
     PieceType piece = attacker; // piece at dest
-    while (true) {
+    do {
         depth++;
         scores[depth] = MATERIAL_TABLE[piece] - scores[depth - 1]; //capture!
-        std::cout << "scores[" << depth << "] = " << scores[depth] << "\n";
+        //std::cout << "\npiece = " << pieceToString(piece) << "\n";
+        //std::cout << "scores[" << depth << "] = " << scores[depth] << "\n";
 
         if (max(-1*scores[depth - 1], scores[depth]) < 0) break;
 
         //add x-ray or conditional attackers to attack set
         //add pawns
         for (u64 loc : bitscanAll(bitboard[W_Pawn])) {
-            if (PAWN_CAPTURE_CACHE[u64ToIndex(loc)][White] & dest) {
-                attackSet |= loc;
+            if ((loc & usedAttackers) == 0) {
+                if (PAWN_CAPTURE_CACHE[u64ToIndex(loc)][White] & dest) {
+                    attackSet |= loc;
+                }
             }
         }
         for (u64 loc : bitscanAll(bitboard[B_Pawn])) {
-            if (PAWN_CAPTURE_CACHE[u64ToIndex(loc)][Black] & dest) {
-                attackSet |= loc;
+            if ((loc & usedAttackers) == 0) {
+                if (PAWN_CAPTURE_CACHE[u64ToIndex(loc)][Black] & dest) {
+                    attackSet |= loc;
+                }
             }
         }
+        for (u64 loc : bitscanAll(bitboard[W_Rook])) {
+            if ((loc & usedAttackers) == 0) {
+                for (int d = 0; d < 4; d++) {
+                    if (_rookRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                }
+            }
+        }
+        for (u64 loc : bitscanAll(bitboard[B_Rook])) {
+            if ((loc & usedAttackers) == 0) {
+                for (int d = 0; d < 4; d++) {
+                    if (_rookRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                }
+            }
+        }
+        for (u64 loc : bitscanAll(bitboard[W_Bishop])) {
+            if ((loc & usedAttackers) == 0) {
+                for (int d = 0; d < 4; d++) {
+                    if (_bishopRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                }
+            }
+        }
+        for (u64 loc : bitscanAll(bitboard[B_Bishop])) {
+            if ((loc & usedAttackers) == 0) {
+                for (int d = 0; d < 4; d++) {
+                    if (_bishopRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                }
+            }
+        }
+        for (u64 loc : bitscanAll(bitboard[W_Queen])) {
+            if ((loc & usedAttackers) == 0) {
+                for (int d = 0; d < 4; d++) {
+                    if (_bishopRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                    if (_rookRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                }
+            }
+        }
+        for (u64 loc : bitscanAll(bitboard[B_Queen])) {
+            if ((loc & usedAttackers) == 0) {
+                for (int d = 0; d < 4; d++) {
+                    if (_bishopRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                    if (_rookRay(loc, d, occ) & dest) {
+                        attackSet |= loc;
+                    }
+                }
+            }
+        }
+        //add rooks, bishops
 
         u64 attPos = 0;
         attackSet = attackSet & ~usedAttackers; // remove attacker from attack set
 
         piece = _leastValuablePiece(attackSet, color, attPos);
         usedAttackers |= attPos;
-        if (piece == Empty) {
-            break;
-        }
+        occ &= ~attPos;
         color = flipColor(color);
-    }
+    } while (piece != Empty);
     while (--depth) {
         scores[depth - 1] = -1*max(-1*scores[depth - 1], scores[depth]);
     }
@@ -1415,10 +1472,12 @@ bool Board::verifyLegal(Move &mv) {
         ray = _bishopRay(kingBB, d, occ);
         if ((bitboard[ebishop] | bitboard[equeen]) & ray) {
             legal = false;
+            break;
         }
         ray = _rookRay(kingBB, d, occ);
         if ((bitboard[erook] | bitboard[equeen]) & ray) {
             legal = false;
+            break;
         }
     }
 
@@ -1446,6 +1505,97 @@ bool Board::verifyLegal(Move &mv) {
     return legal;
 }
 
+bool Board::isCheckingMove(Move &mv) {
+    bool result = false;
+    Color myColor = turn();
+    PieceType enemyKing = myColor == White ? B_King : W_King;
+    //TODO: CASTLING
+    //1. Edit bitboards
+    //mask out mover
+    bitboard[mv.mover] &= ~mv.src;
+
+    if (mv.moveType == MoveType::EnPassant) {
+        if (mv.mover == W_Pawn) {
+            u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
+            bitboard[B_Pawn] &= ~capturedPawn;
+        } if (mv.mover == B_Pawn) {
+            u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
+            bitboard[W_Pawn] &= ~capturedPawn;
+        }
+    } else {
+        if (mv.destFormer != Empty) {
+            bitboard[mv.destFormer] &= ~mv.dest;
+        }
+    }
+    
+    //move to new location
+    if (mv.moveType == MoveType::Promotion) {
+        bitboard[mv.promotion] |= mv.dest;
+    } else {
+        bitboard[mv.mover] |= mv.dest;
+    }
+
+    //2. Check if king is in line of fire
+
+    //ray out, knight out, king out, pawn out
+    PieceType offset = 0;
+    if (myColor == Black) {
+        offset = 6;
+    }
+    PieceType eknight = W_Knight + offset;
+    PieceType eking = W_King + offset;
+    PieceType erook = W_Rook + offset;
+    PieceType ebishop = W_Bishop + offset;
+    PieceType equeen = W_Queen + offset;
+    PieceType epawn = W_Pawn + offset;
+
+    u64 kingBB = bitboard[enemyKing];
+    int kingIndex = u64ToIndex(kingBB);
+    u64 occ = occupancy();
+
+    if (PAWN_CAPTURE_CACHE[kingIndex][myColor] & bitboard[epawn]
+     || (KNIGHT_MOVE_CACHE[kingIndex] & bitboard[eknight] || KING_MOVE_CACHE[kingIndex] & bitboard[eking])) {
+        result = true;
+    }
+
+    for (int d = 0; d < 4; d++) {
+        u64 ray;
+        ray = _bishopRay(kingBB, d, occ);
+        if ((bitboard[ebishop] | bitboard[equeen]) & ray) {
+            result = true;
+            break;
+        }
+        ray = _rookRay(kingBB, d, occ);
+        if ((bitboard[erook] | bitboard[equeen]) & ray) {
+            result = true;
+            break;
+        }
+    }
+
+    //3. Revert bitboards
+
+    //move piece to old src
+    bitboard[mv.mover] |= mv.src;
+
+    //mask out dest
+    bitboard[mv.mover] &= ~mv.dest;
+    if (mv.moveType == MoveType::Promotion) {
+        bitboard[mv.promotion] &= ~mv.dest;
+    }
+
+    //restore dest
+    if (mv.moveType == MoveType::EnPassant) { //instead of restoring at capture location, restore one above
+        if (mv.mover == W_Pawn) {
+            bitboard[B_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
+        } else {
+            bitboard[W_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
+        }
+    } else if (mv.destFormer != Empty) {
+        bitboard[mv.destFormer] |= mv.dest;
+    }
+    return result;
+}
+
 void Board::generateLegalMoves() {
     _legalMovesBuffer.clear();
     _quietMoveBuffer.clear();
@@ -1458,7 +1608,7 @@ void Board::generateLegalMoves() {
         u64 src = _srcBuffer[c][i];
         u64 destMap = _destBuffer[c][i];
         int count = 0;
-        std::array<u64, 32> arr;
+        std::array<u64, 64> arr;
         arr = bitscanAll(destMap, count);
         for (int k = 0; k < count; k++) {
             u64 dest = arr[k];
@@ -1471,11 +1621,17 @@ void Board::generateLegalMoves() {
                 } else if (row1 == 0) {
                     for (PieceType prom = B_Knight; prom < B_Knight + 4; prom++) {
                         Move mv = Move::PromotionMove(mover, src, dest, prom);
+                        if (occ & dest) {
+                            mv.destFormer = pieceAt(dest);
+                        }
                         _tacticalMoveBuffer.push_back(mv);
                     }
                 } else if (row1 == 7) {
                     for (PieceType prom = W_Knight; prom < W_Knight + 4; prom++) {
                         Move mv = Move::PromotionMove(mover, src, dest, prom);
+                        if (occ & dest) {
+                            mv.destFormer = pieceAt(dest);
+                        }
                         _tacticalMoveBuffer.push_back(mv);
                     }
                 } else {

@@ -70,7 +70,7 @@ int max(int i1, int i2);
 int min(int i1, int i2);
 
 std::vector<u64> bitscanAll(u64 x); //hotspot
-std::array<u64, 32> bitscanAll(u64 x, int &outsize); //hotspot
+std::array<u64, 64> bitscanAll(u64 x, int &outsize); //hotspot
 
 int rand100();
 void srand100(int seed);

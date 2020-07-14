@@ -68,8 +68,8 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
     int count = 1;
 
     auto moves = board.legalMoves();
-
     orderMoves(board, moves);
+
     int alpha = INTMIN;
     Move chosen = moves[moves.size() - 1]; //PV-move
 
@@ -81,19 +81,23 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
 
             for (int i = 0; i < (int) moves.size(); i++) {
                 if (moves[i] == pvMove) {
-                    Move temp = moves[moves.size() - 1];
-                    moves[moves.size() - 1] = pvMove;
-                    moves[i] = temp;
+                    Move temp = moves[i];
+                    moves.erase(moves.begin() + i);
+                    moves.push_back(temp);
                     break;
                 }
             }
             chosen = moves[moves.size() - 1];
+        } else {
+            //node is in table but not PV?????
+            node.bestMove = chosen; //not in table, so change it
+            table.insert(node, alpha);
         }
     } else {
         node.bestMove = chosen; //not in table, so change it
         table.insert(node, alpha);
     }
-    node.bestMove = chosen; //not in table, so change it
+    node.bestMove = chosen;
 
     int beta = INTMAX;
     outscore = alpha;
@@ -109,6 +113,8 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
         board.makeMove(mv);
         int score = -1*AI::alphaBetaNega(board, depth, -1*beta, -1*alpha, stop, count, pvFlag);
         board.unmakeMove();
+
+
         pvFlag = false;
 
         if (stop) {
@@ -143,12 +149,12 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
 void sendPV(Board &board, int depth, int nodeCount, int score, int time) {
     std::string pv = " pv ";
     int mc = 0;
-    for (int k = 0; k < depth; k++) {
+    for (int k = 0; k < depth+1; k++) {
         TableNode nodeSearch(board, depth, NodeType::PV);
         auto search = table.find(nodeSearch);
         if (search != table.end()) {
             TableNode node = search->first;
-            if (node.nodeType == NodeType::PV || true) {
+            if (node.nodeType == NodeType::PV) {
                 Move mv = node.bestMove;
                 pv += board.moveToUCIAlgebraic(mv);
                 pv += " ";
@@ -165,7 +171,7 @@ void sendPV(Board &board, int depth, int nodeCount, int score, int time) {
         board.unmakeMove();
     }
     sendCommand(
-        "info depth " + std::to_string(depth) + 
+        "info depth " + std::to_string(depth+1) + 
         " score cp " + std::to_string(score) + 
         " time " + std::to_string(time) + 
         " nps " + std::to_string( (int) ((double)nodeCount/((double)time/1000.0))) + 
@@ -176,13 +182,31 @@ TranspositionTable& AI::getTable() {
     return table;
 }
 
-int AI::quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<bool> &stop, int &count) {
+int AI::quiescence(Board &board, int plyCount, int alpha,
+    int beta, std::atomic<bool> &stop, int &count, int depthLimit) {
+
     count++;
-    auto moves = board.legalMoves();
+
     int baseline = AI::flippedEval(board);
-    if (board.isTerminal()) {
+    BoardStatus status = board.status();
+
+    if (status != BoardStatus::Playing || plyCount >= depthLimit) {
+        if (status == BoardStatus::WhiteWin) {
+            return baseline - plyCount;
+        } else if (status == BoardStatus::BlackWin) {
+            return baseline + plyCount;
+        }
         return baseline; //why was this ommitted?
     }
+
+    std::vector<Move> moves;// = board.legalMoves();
+    bool isCheck = board.isCheck();
+    if (isCheck) {
+        moves = board.produceUncheckMoves();
+    } else {
+        moves = board.legalMoves();
+    }
+    
 
     if (plyCount == 0) {
         //check table
@@ -217,8 +241,17 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<
         }
         if (mv.dest & piecemap) {
             //captures, and checks???????????
+            int see = board.see(mv.src, mv.dest, mv.mover, mv.destFormer);
+            if (see >= 0) {
+                board.makeMove(mv);
+                int score = -1*quiescence(board, plyCount + 1, -1*beta, -1*alpha, stop, count, depthLimit);
+                board.unmakeMove();
+                if (score >= beta) return beta;
+                if (score > alpha) alpha = score;
+            }
+        } else if (board.isCheckingMove(mv)) {
             board.makeMove(mv);
-            int score = -1*quiescence(board, plyCount + 1, -1*beta, -1*alpha, stop, count);
+            int score = -1*quiescence(board, plyCount + 1, -1*beta, -1*alpha, stop, count, 10);
             board.unmakeMove();
             if (score >= beta) return beta;
             if (score > alpha) alpha = score;
@@ -228,7 +261,29 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<
 }
 
 void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
-    //put captures first
+    //put see > 0 captures at front first
+    std::vector<Move> winningCaptures;
+    std::vector<Move> other;
+    std::vector<Move> equalCaptures;
+    u64 piecemap = board.occupancy();
+    for (Move &mv : mvs) {
+        if (mv.dest & piecemap) {
+            int see = board.see(mv.src, mv.dest, mv.mover, mv.destFormer);
+            if (see > 0) {
+                winningCaptures.push_back(mv);
+            } else if (see == 0) {
+                equalCaptures.push_back(mv);
+            } else {
+                other.push_back(mv);
+            }
+        } else {
+            other.push_back(mv);
+        }
+    }
+    mvs.clear();
+    mvs.assign(other.begin(), other.end());
+    mvs.insert(mvs.end(), equalCaptures.begin(), equalCaptures.end());
+    mvs.insert(mvs.end(), winningCaptures.begin(), winningCaptures.end());
 }
 
 
@@ -240,14 +295,13 @@ int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<
         return score;
     }
 
-    if (depth == 0) {
-        int score = quiescence(board, 0, alpha, beta, stop, count);
+    if (depth <= 0) {
+        int score = quiescence(board, 0, alpha, beta, stop, count, INTMAX); 
         return score;
     }
 
     auto moves = board.legalMoves();
     orderMoves(board, moves);
-    //order moves
 
     TableNode node(board, depth, NodeType::All);
     auto found = table.find(node);
@@ -272,9 +326,14 @@ int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<
         Move pvMove = found->first.bestMove;
         for (int i = 0; i < (int) moves.size(); i++) {
             if (moves[i] == pvMove) {
+                /*
                 Move temp = moves[moves.size() - 1];
                 moves[moves.size() - 1] = pvMove;
                 moves[i] = temp;
+                */
+                Move temp = moves[i];
+                moves.erase(moves.begin() + i);
+                moves.push_back(temp);
                 break;
             }
         }
@@ -286,33 +345,51 @@ int AI::alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<
         table.insert(node, alpha); //overwrite with score as alpha
     }
 
+    bool nodeIsCheck = board.isCheck();
     
-    /*
     bool nullmove = true;
     //NULL MOVE PRUNE
     //MAKE SURE NOT IN CHECK??
-    if (nullmove && !board.isInCheck(board.turn())) {
-        board.makeMove(Move::NullMove());
-        int score = -1*AI::alphaBetaNega(board, max(0, depth-2), -1*beta, -1*alpha, stop, count, false); //limit depth
+    if (nullmove && !nodeIsCheck) {
+        Move mv = Move::NullMove();
+        board.makeMove(mv);
+        int score = -1*AI::alphaBetaNega(board, depth-2, -1*beta, -1*alpha, stop, count, false); //limit depth
         board.unmakeMove();
         if (score >= beta) { //our move is better than beta, so this node is cut off
-            node.nodeType = NodeType::Cut;
-            node.bestMove = moves[moves.size() - 1];
             return beta; //fail hard
         }
         if (score > alpha) {
             alpha = score; //push up alpha
         }
     }
-    */
+
+    bool lmr = true;
+    if (depth < 3) {
+        lmr = false;
+    }
+    int movesSearched = 0;
+    bool checkExtend = nodeIsCheck && depth < 3;
 
     while (moves.size() > 0) {
         Move mv = moves.back();
         moves.pop_back();
-    //for (Move& mv : moves) {
+
         board.makeMove(mv);
-        int score = -1*AI::alphaBetaNega(board, depth-1, -1*beta, -1*alpha, stop, count, false); //best move for oppo
+
+        //LMR
+        int subdepth = depth-1;
+        if (!nodeIsCheck && !board.isCheck()) {
+            if (lmr && movesSearched > 4) {
+                subdepth--;
+            }
+        } else if (checkExtend) {
+            subdepth++;
+        }
+
+
+        int score = -1*AI::alphaBetaNega(board, subdepth, -1*beta, -1*alpha, stop, count, false); //best move for oppo
         board.unmakeMove();
+        movesSearched ++;
 
         if (stop) { //if stopped in subcall, then we want to ignore it
             return alpha;

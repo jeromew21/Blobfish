@@ -13,6 +13,7 @@ class Board
 {
   private:
     bool _hasGeneratedMoves;
+
     std::vector<PieceType> _moverBuffer[2];
     std::vector<u64> _srcBuffer[2];
     std::vector<u64> _destBuffer[2];
@@ -78,6 +79,8 @@ class Board
 
     //shortcut move gen
     std::vector<Move> produceUncheckMoves();
+
+    bool isCheckingMove(Move &mv);
 
     //Important stuff
     void generateLegalMoves();

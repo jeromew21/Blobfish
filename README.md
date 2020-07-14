@@ -57,3 +57,47 @@ r4rk1/1pp2p1p/p1b1pPp1/4N3/4P3/2N4Q/PPPq1bPP/R6K b - - 1 1
 
 r1bq1rk1/ppppbppp/2n1p3/4P3/1nPP4/PQ3N2/1P1B1PPP/RN2KB1R b KQ - 0 8
 - loses knight, poor move ordering leading to not enough positions searched (best move is ordered last)
+- fixed with improved quiescience
+
+r4rk1/4bppp/p2p1n2/1ppP4/2nP4/1Pq2N1P/P1B2PP1/1RBQR1K1 b - - 2 17
+- doesn't move knight out of attack (actually moving the knight traps the queen)
+
+2kr1b1r/p2ppppp/2p5/8/q4B2/6P1/1R2bPBP/1R4K1 b - - 0 1
+- missed mate in 3 with e5??? (fixed with check extension)
+
+8/pb1k3p/4p3/1p4P1/1K4B1/7P/5r2/8 b - - 10 42
+- gets stuck checking?? (seems fixed)
+
+1q6/6K1/8/8/8/8/4k3/1q6 b - - 41 25
+- why throw (seems fixed)
+
+2k5/p5r1/1p6/4R1pp/2pPpp2/P1n1B1P1/2P2K1P/8 w - - 0 37
+- why throw (seems fixed)
+
+6k1/r2q4/p2b3r/3ppQNp/7R/1P5P/1P3PP1/2R3K1 w - - 3 34
+- Nf7?? (fixed unchecking bug)
+
+8/8/p5k1/3p3p/5pP1/8/1q3K2/2r5 w - - 0 50
+- stalls?? (mate counter is busted)
+
+6k1/r2q1N2/p2b3r/3ppQ1p/7R/1P5P/1P3PP1/2R3K1 b - - 4 1
+- why Re6 (issue with produceUncheck)
+
+8/5k1p/8/4p1p1/4P1P1/6K1/2q5/8 b - - 5 49
+- UHHH (the mate is rather deep, doesn't know the line to convert. hash table issue?)
+
+8/pp4pp/2k1b3/P7/1B6/2K5/4rPPP/3q4 b - - 0 1
+- M1 missed?? (depth as 0 indexed, was skipping 0-depth)
+
+r4rk1/1pp1p3/1bq4p/p2n2p1/P1P1Np2/1Q1P3P/1P1B1P1P/R4RK1 b - - 0 20
+- Nb4 is blunder, so is e6.. time trouble??
+- very deep, tricky idea. gets Black out of this mess: Qd6 threatening mate ideas... probably just too deep for now
+
+4r1k1/1bp2pp1/1pn1p3/1R1pr1p1/2P1B3/B7/P2P1PPP/4R1K1 w - - 0 24
+- Be6?! not a blunder actually. complex position, White loses the bishop. Generating counterplay after Rxb6 
+
+1r6/1r5p/1pp3pk/pq6/N1b4Q/1P5P/P4RP1/3R2K1 b - - 2 33
+- black loses the bishop, is there a better move?
+
+r1bqkb1r/pp3ppp/2n1p3/3p3n/2pP1B2/2N2NPB/PPP1PP1P/R2Q1RK1 w kq - 2 8
+- depth seems way too shallow, stuck in q search?

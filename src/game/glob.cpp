@@ -157,8 +157,8 @@ int min(int i1, int i2) {
     }
 }
 
-std::array<u64, 32> bitscanAll(u64 x, int &outsize) {
-    std::array<u64, 32> result;
+std::array<u64, 64> bitscanAll(u64 x, int &outsize) {
+    std::array<u64, 64> result;
     int count = 0;
     u64 mask = 1;
     int i = 0;

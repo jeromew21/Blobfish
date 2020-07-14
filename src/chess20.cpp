@@ -23,7 +23,7 @@ class UCIInterface {
          int depthLimit = INTMAX;
          int bestScore = INTMIN;
          bestMove = board.legalMoves()[0];
-         for (depth = 1; depth < depthLimit; depth++) {
+         for (depth = 0; depth < depthLimit; depth++) {
             int score;
             //send principal variation move from previous
             Move calcMove = AI::rootMove(board, depth, _notThinking, score);
@@ -44,11 +44,13 @@ class UCIInterface {
             } 
             if (score >= INTMAX || score <= INTMIN) {
                bestMove = calcMove;
+               /*
                int y = (int) ceil( (double) depth / 2.0 );
                if (score <= INTMIN) {
                   y *= -1;
                }
                sendCommand("info score mate " + std::to_string(y));
+               */
                sendCommand("bestmove " + board.moveToUCIAlgebraic(bestMove));
                debugLog("RUN() reached end");
                return;
@@ -249,8 +251,9 @@ class UCIInterface {
 	            quit the program as soon as possible
             */
            exit(0);
+         } else if (tokens[0] == "dump") {
+            board.dump(true);
          }
-         board.dump(true);
       }
 
       ~UCIInterface()

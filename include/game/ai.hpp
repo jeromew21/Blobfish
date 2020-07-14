@@ -100,7 +100,8 @@ namespace AI {
 
     Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore);
 
-    int quiescence(Board &board, int plyCount, int alpha, int beta, std::atomic<bool> &stop, int &count);
+    int quiescence(Board &board, int plyCount, int alpha, 
+        int beta, std::atomic<bool> &stop, int &count, int depthLimit);
 
     int alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<bool> &stop, int &count, bool isPv);
 
