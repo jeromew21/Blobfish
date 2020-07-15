@@ -1,9 +1,13 @@
 # Chess
 
-# Features
+# Running list of features
 1. UCI compatability (only partially implemented but tested with Lichess-Bot, and Cutechess)
+4. Alpha-beta pruning
 2. Bitboard move generation
 3. Outputs principal variation
+6. Static exchange evaluation
+4. Late move reduction
+5. Null move pruning
 
 # Todos (in order of priority)
 1. Improve hash table
@@ -96,8 +100,21 @@ r4rk1/1pp1p3/1bq4p/p2n2p1/P1P1Np2/1Q1P3P/1P1B1P1P/R4RK1 b - - 0 20
 4r1k1/1bp2pp1/1pn1p3/1R1pr1p1/2P1B3/B7/P2P1PPP/4R1K1 w - - 0 24
 - Be6?! not a blunder actually. complex position, White loses the bishop. Generating counterplay after Rxb6 
 
-1r6/1r5p/1pp3pk/pq6/N1b4Q/1P5P/P4RP1/3R2K1 b - - 2 33
-- black loses the bishop, is there a better move?
-
 r1bqkb1r/pp3ppp/2n1p3/3p3n/2pP1B2/2N2NPB/PPP1PP1P/R2Q1RK1 w kq - 2 8
-- depth seems way too shallow, stuck in q search?
+- depth seems way too shallow, stuck in q search? (fixed)
+
+1r4k1/4Rp1p/6p1/2PQ2P1/4P3/5q2/8/4K3 w - - 1 49
+- blunders Qe5
+
+1k2r3/4p3/p4np1/2p4p/1p6/3N2PP/PPP5/2K1R3 b - - 2 33
+- c4?
+
+2kr3r/1qp1p2p/4Qnpb/1p6/8/2N1P3/PPP2PPP/2KRB2R b - - 0 19
+- blocks instead of moving, loses in a very bizarre line
+
+
+1b1r3k/8/5q1r/2Q5/N1B4P/1P2K1P1/1P2P3/6R1 b - - 15 47
+- chess20 vs Stockfish 1600
+- doesn't realize it's getting mated after 48. Qa5
+- given more time it finds 48. Bd3 averting the threat?
+- moves: 47. Qc5 +2.31/5 11s Rh7 +16.33/22 8.7s 48. Qa5 -1.55/4 11s Re7+ +M5/22 3.1s 49. Qe5 -100000.00/2 0s Rxe5# 

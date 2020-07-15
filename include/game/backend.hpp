@@ -2,6 +2,7 @@
 #define DS_HPP
 
 #include <vector>
+#include <array>
 
 #include <game/move.hpp>
 
@@ -19,6 +20,29 @@ struct PieceIndexTuple {
 struct BoardStateNode {
     int data[BOARD_STATE_ENTROPY];
     Move mv;
+};
+
+struct KillerTable {
+    std::array<std::array<std::array<u64, 2>, 3>, 20> table;
+
+    KillerTable (){
+        clear();
+    }
+
+    void clear() {
+        for (int i = 0; i < 20; i++) {
+            for (int k = 0; k < 3; k++) {
+                table[i][k][0] = 0;
+                table[i][k][1] = 0;
+            }
+        }
+    }
+    void insert(Move &mv, int ply) {
+        for (int k = 0; k < 3; k++) {
+            table[ply][k][0] = 0;
+            table[ply][k][1] = 0;
+        }
+    }
 };
 
 struct PseudoLegalData {

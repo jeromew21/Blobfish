@@ -5,11 +5,8 @@
 PieceType pieceIndexFromColor(Color color) {
     if (color == White) {
         return 0;
-    } else if (color == Black) {
-        return 6;
     } else {
-        debugLog("bad pieces from color");
-        throw;
+        return 6;
     }
 }
 

@@ -14,7 +14,6 @@ void debugLog(const std::string& f) {
 }
 
 void sendCommand(const std::string& cmd) {
-    debugLog("SEND " + cmd);
     std::cout << cmd << std::endl;
 }
 

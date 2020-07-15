@@ -291,9 +291,14 @@ void Board::_generatePseudoLegal() {
     _srcBuffer[Black].clear();
     _destBuffer[Black].clear();
 
+    u64 whiteOcc = occupancy(White);
+    u64 blackOcc = occupancy(Black);
+    u64 occ = whiteOcc | blackOcc;
+
     arr = bitscanAll(bitboard[W_Knight], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _knightAttacks(arr[i], White);
+        u64 attacks = _knightAttacks(arr[i]) & ~whiteOcc;
+
         pieceAttacks[W_Knight] |= attacks;
         pieceMoves[W_Knight] |= attacks;
         _moverBuffer[White].push_back(W_Knight);
@@ -302,7 +307,7 @@ void Board::_generatePseudoLegal() {
     }
     arr = bitscanAll(bitboard[B_Knight], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _knightAttacks(arr[i], Black);
+        u64 attacks = _knightAttacks(arr[i]) & ~blackOcc;
         pieceAttacks[B_Knight] |= attacks;
         pieceMoves[B_Knight] |= attacks;
         _moverBuffer[Black].push_back(B_Knight);
@@ -312,7 +317,7 @@ void Board::_generatePseudoLegal() {
 
     arr = bitscanAll(bitboard[W_King], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _kingAttacks(arr[i], White);
+        u64 attacks = _kingAttacks(arr[i]) & ~whiteOcc;
         pieceAttacks[W_King] |= attacks;
         pieceMoves[W_King] |= attacks;
         _moverBuffer[White].push_back(W_King);
@@ -321,7 +326,7 @@ void Board::_generatePseudoLegal() {
     }
     arr = bitscanAll(bitboard[B_King], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _kingAttacks(arr[i], Black);
+        u64 attacks = _kingAttacks(arr[i]) & ~blackOcc;
         pieceAttacks[B_King] |= attacks;
         pieceMoves[B_King] |= attacks;
         _moverBuffer[Black].push_back(B_King);
@@ -331,7 +336,7 @@ void Board::_generatePseudoLegal() {
 
     arr = bitscanAll(bitboard[W_Bishop], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _bishopAttacks(arr[i], White);
+        u64 attacks = _bishopAttacks(arr[i], occ) & ~whiteOcc;
         pieceAttacks[W_Bishop] |= attacks;
         pieceMoves[W_Bishop] |= attacks;
         _moverBuffer[White].push_back(W_Bishop);
@@ -340,7 +345,7 @@ void Board::_generatePseudoLegal() {
     }
     arr = bitscanAll(bitboard[B_Bishop], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _bishopAttacks(arr[i], Black);
+        u64 attacks = _bishopAttacks(arr[i], occ) & ~blackOcc;
         pieceAttacks[B_Bishop] |= attacks;
         pieceMoves[B_Bishop] |= attacks;
         _moverBuffer[Black].push_back(B_Bishop);
@@ -350,7 +355,7 @@ void Board::_generatePseudoLegal() {
 
     arr = bitscanAll(bitboard[W_Rook], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _rookAttacks(arr[i], White);
+        u64 attacks = _rookAttacks(arr[i], occ) & ~whiteOcc;
         pieceAttacks[W_Rook] |= attacks;
         pieceMoves[W_Rook] |= attacks;
         _moverBuffer[White].push_back(W_Rook);
@@ -359,7 +364,7 @@ void Board::_generatePseudoLegal() {
     }
     arr = bitscanAll(bitboard[B_Rook], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _rookAttacks(arr[i], Black);
+        u64 attacks = _rookAttacks(arr[i], occ) & ~blackOcc;
         pieceAttacks[B_Rook] |= attacks;
         pieceMoves[B_Rook] |= attacks;
         _moverBuffer[Black].push_back(B_Rook);
@@ -369,7 +374,7 @@ void Board::_generatePseudoLegal() {
 
     arr = bitscanAll(bitboard[W_Queen], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _rookAttacks(arr[i], White) | _bishopAttacks(arr[i], White);
+        u64 attacks = (_rookAttacks(arr[i], occ) | _bishopAttacks(arr[i], occ)) & ~whiteOcc;
         pieceAttacks[W_Queen] |= attacks;
         pieceMoves[W_Queen] |= attacks;
         _moverBuffer[White].push_back(W_Queen);
@@ -378,7 +383,7 @@ void Board::_generatePseudoLegal() {
     }
     arr = bitscanAll(bitboard[B_Queen], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _rookAttacks(arr[i], Black) | _bishopAttacks(arr[i], Black);
+        u64 attacks = (_rookAttacks(arr[i], occ) | _bishopAttacks(arr[i], occ)) & ~blackOcc;
         pieceAttacks[B_Queen] |= attacks;
         pieceMoves[B_Queen] |= attacks;
         _moverBuffer[Black].push_back(B_Queen);
@@ -388,8 +393,8 @@ void Board::_generatePseudoLegal() {
 
     arr = bitscanAll(bitboard[W_Pawn], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _pawnAttacks(arr[i], White);
-        u64 mvs = _pawnMoves(arr[i], White) | attacks;
+        u64 attacks = _pawnAttacks(arr[i], White, blackOcc);
+        u64 mvs = _pawnMoves(arr[i], White, occ) | attacks;
         pieceAttacks[W_Pawn] |= attacks;
         pieceMoves[W_Pawn] |= mvs;
         _moverBuffer[White].push_back(W_Pawn);
@@ -398,8 +403,8 @@ void Board::_generatePseudoLegal() {
     }
     arr = bitscanAll(bitboard[B_Pawn], size);
     for (int i = 0; i < size; i++) {
-        u64 attacks = _pawnAttacks(arr[i], Black);
-        u64 mvs = _pawnMoves(arr[i], Black) | attacks;
+        u64 attacks = _pawnAttacks(arr[i], Black, whiteOcc);
+        u64 mvs = _pawnMoves(arr[i], Black, occ) | attacks;
         pieceAttacks[B_Pawn] |= attacks;
         pieceMoves[B_Pawn] |= mvs;
         _moverBuffer[Black].push_back(B_Pawn);
@@ -706,7 +711,7 @@ bool Board::isTerminal() {
 
 BoardStatus Board::status() {
     //COSTLY, try to use transposition table to avoid calling
-    if (material(White) + material(Black) <= 350 || _threefoldFlag) {
+    if (material(White) + material(Black) <= 350) {
         return BoardStatus::Draw;
     }
     auto movelist = produceUncheckMoves();
@@ -856,13 +861,6 @@ void Board::makeMove(Move &mv) {
         _setEpSquare(-1);
     }
     
-    auto threefoldCount = _threefoldMap.find(_zobristHash);
-    if (threefoldCount != _threefoldMap.end()) {
-        _threefoldFlag = true;
-    } else {
-        _threefoldMap.insert(_zobristHash);
-    }
-
     _generatePseudoLegal();
     _hasGeneratedMoves = false;
 }
@@ -919,11 +917,6 @@ void Board::_setEpSquare(int sq) {
 
 void Board::unmakeMove() {
     //state changer
-    auto threefoldCount = _threefoldMap.find(_zobristHash);
-    _threefoldFlag = false;
-    if (threefoldCount != _threefoldMap.end()) {
-        _threefoldMap.erase(_zobristHash);
-    }
 
     BoardStateNode &node = stack.peek();
     Move& mv = node.mv;
@@ -1081,19 +1074,16 @@ void Board::dump(bool debug) {
     }
 }
 
-u64 Board::_knightAttacks(u64 index64, Color color) {
-    u64 friendlies = occupancy(color);
+u64 Board::_knightAttacks(u64 index64) {
     u64 ray = 0;
     int index = u64ToIndex(index64);
     u64 result = 0;
     ray = KNIGHT_MOVE_CACHE[index];
     result |= ray;
-    result &= ~friendlies; //remove friendlies
     return result;
 }
 
-u64 Board::_pawnMoves(u64 index64, Color color) {
-    u64 occupants = occupancy();
+u64 Board::_pawnMoves(u64 index64, Color color, u64 occupants) {
     int index = u64ToIndex(index64);
     u64 result = 0;
     u64 forward1 = PAWN_MOVE_CACHE[index][color];
@@ -1110,10 +1100,9 @@ u64 Board::_pawnMoves(u64 index64, Color color) {
     return result;
 }
 
-u64 Board::_pawnAttacks(u64 index64, Color color) {
+u64 Board::_pawnAttacks(u64 index64, Color color, u64 enemies) {
     int index = u64ToIndex(index64);
     u64 result = 0;
-    u64 enemies = occupancy(flipColor(color));
     u64 captures = PAWN_CAPTURE_CACHE[index][color];
     result |= captures & enemies; //plus en passant sqaure
     if (color == turn() && boardState[EN_PASSANT_INDEX] >= 0) {
@@ -1123,26 +1112,22 @@ u64 Board::_pawnAttacks(u64 index64, Color color) {
     return result;
 }
 
-u64 Board::_kingAttacks(u64 index64, Color color) {
-    u64 friendlies = occupancy(color);
+u64 Board::_kingAttacks(u64 index64) {
     u64 ray = 0;
     u64 result = 0;
     int index = u64ToIndex(index64);
     ray = KING_MOVE_CACHE[index];
     result |= ray;
-    result &= ~friendlies; //remove friendlies
     return result;
 }
 
 u64 Board::_rookRay(u64 origin, int direction, u64 mask) {
     u64 ray = ROOK_MOVE_CACHE[u64ToIndex(origin)][direction];
     u64 overlaps = ray & mask;
-    if (direction < 2) {
-        if (overlaps) {
+    if (overlaps) {
+        if (direction < 2) {
             ray &= ~ROOK_MOVE_CACHE[bitscanForward(overlaps)][direction];
-        }
-    } else {
-        if (overlaps) {
+        } else {
             ray &= ~ROOK_MOVE_CACHE[bitscanReverse(overlaps)][direction];
         }
     }
@@ -1164,11 +1149,8 @@ u64 Board::_bishopRay(u64 origin, int direction, u64 mask) {
     return ray;
 }
 
-u64 Board::_rookAttacks(u64 index64, Color color) {
+u64 Board::_rookAttacks(u64 index64, u64 occupants) {
     //given a color rook at index64
-    u64 friendlies = occupancy(color);
-    u64 enemies = occupancy(flipColor(color));
-    u64 occupants = friendlies | enemies;
     int index = u64ToIndex(index64);
     u64 ray = 0;
     u64 overlaps = 0;
@@ -1202,15 +1184,11 @@ u64 Board::_rookAttacks(u64 index64, Color color) {
         result &= ~ROOK_MOVE_CACHE[bitscanReverse(overlaps)][3];
     }
 
-    result &= ~friendlies; //remove friendlies
     return result;
 }
 
-u64 Board::_bishopAttacks(u64 index64, Color color) {
+u64 Board::_bishopAttacks(u64 index64, u64 occupants) {
     //given a color bishop at index64
-    u64 friendlies = occupancy(color);
-    u64 enemies = occupancy(flipColor(color));
-    u64 occupants = friendlies | enemies;
     int index = u64ToIndex(index64);
     u64 ray = 0;
     u64 result = 0;
@@ -1243,9 +1221,6 @@ u64 Board::_bishopAttacks(u64 index64, Color color) {
     if (overlaps) {
         result &= ~BISHOP_MOVE_CACHE[bitscanReverse(overlaps)][3];
     }
-
-    result &= ~friendlies; //remove friendlies
-
     return result;
 }
 
@@ -1419,6 +1394,7 @@ bool Board::verifyLegal(Move &mv) {
     //check that king is not moving into check
     //1. Edit bitboards
     //mask out mover
+    
     bitboard[mv.mover] &= ~mv.src;
 
     if (mv.moveType == MoveType::EnPassant) {
@@ -1810,10 +1786,6 @@ void Board::loadPosition(PieceType* piecelist, Color turn, int epIndex, int wlon
     _hasGeneratedMoves = false;
     _generatePseudoLegal();
 
-    _threefoldFlag = false;
-    _threefoldMap.clear();
-
-    _threefoldMap.insert(_zobristHash);
 }
 
 void Board::reset() {

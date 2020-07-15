@@ -26,7 +26,7 @@ class UCIInterface {
          for (depth = 0; depth < depthLimit; depth++) {
             int score;
             //send principal variation move from previous
-            Move calcMove = AI::rootMove(board, depth, _notThinking, score);
+            Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove);
             if (_notThinking) {
                
                if (!(calcMove == bestMove)) {
@@ -83,7 +83,6 @@ class UCIInterface {
       }
 
       void recieveCommand(std::string cmd) {
-         debugLog("RECV " + cmd);
          std::vector<std::string> tokens = tokenize(cmd);
          if (tokens.size() < 1) {
             return;

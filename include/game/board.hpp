@@ -24,8 +24,6 @@ class Board
 
     std::vector<PseudoLegalData> _pseudoStack;
 
-    std::unordered_set<u64> _threefoldMap;
-    bool _threefoldFlag;
 
     //incremental update zobrist methods
     void _removePiece(PieceType p, u64 location);
@@ -47,12 +45,13 @@ class Board
 
     void _generatePseudoLegal();
 
-    u64 _bishopAttacks(u64 index64, Color color);
-    u64 _rookAttacks(u64 index64, Color color);
-    u64 _knightAttacks(u64 index64, Color color);
-    u64 _kingAttacks(u64 index64, Color color);
-    u64 _pawnAttacks(u64 index64, Color color);
-    u64 _pawnMoves(u64 index64, Color color);
+    u64 _bishopAttacks(u64 index64, u64 occupants);
+    u64 _rookAttacks(u64 index64, u64 occupants);
+
+    u64 _knightAttacks(u64 index64);
+    u64 _kingAttacks(u64 index64);
+    u64 _pawnAttacks(u64 index64, Color color, u64 enemies);
+    u64 _pawnMoves(u64 index64, Color color, u64 occupants);
 
     u64 _rookRay(u64 origin, int direction, u64 mask);
     u64 _bishopRay(u64 origin, int direction, u64 mask);

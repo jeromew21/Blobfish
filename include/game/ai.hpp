@@ -7,8 +7,8 @@
 #include <game/board.hpp>
 #include <unordered_map>
 
-const size_t TABLE_SIZE = 16384;
-const size_t CAPACITY = 16384;
+const size_t TABLE_SIZE = 32768;
+const size_t CAPACITY = 32768;
 
 enum NodeType {
     PV = 0, Cut = 1, All = 2
@@ -45,7 +45,7 @@ struct TableBucket {
 
 };
 
-void sendPV(Board &board, int depth, int nodeCount, int score, int time);
+void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score, int time);
 
 class TranspositionTable {
     TableBucket _arr[TABLE_SIZE];
@@ -83,8 +83,8 @@ class TranspositionTable {
                 //no overwrite
                 members += 1;
             }
-            if (members > CAPACITY) {
-                //evict
+            if (bucket->first.nodeType == NodeType::PV && node.nodeType != NodeType::PV) {
+                return;
             }
             bucket->first = node;
             bucket->second = score;
@@ -98,12 +98,12 @@ namespace AI {
 
     TranspositionTable& getTable();
 
-    Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore);
+    Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore, Move &prevPv);
 
     int quiescence(Board &board, int plyCount, int alpha, 
         int beta, std::atomic<bool> &stop, int &count, int depthLimit);
 
-    int alphaBetaNega(Board &board, int depth, int alpha, int beta, std::atomic<bool> &stop, int &count, bool isPv);
+    int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta, std::atomic<bool> &stop, int &count);
 
     void orderMoves(Board &board, std::vector<Move> &mvs);
 
