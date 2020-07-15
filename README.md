@@ -118,3 +118,12 @@ r1bqkb1r/pp3ppp/2n1p3/3p3n/2pP1B2/2N2NPB/PPP1PP1P/R2Q1RK1 w kq - 2 8
 - doesn't realize it's getting mated after 48. Qa5
 - given more time it finds 48. Bd3 averting the threat?
 - moves: 47. Qc5 +2.31/5 11s Rh7 +16.33/22 8.7s 48. Qa5 -1.55/4 11s Re7+ +M5/22 3.1s 49. Qe5 -100000.00/2 0s Rxe5# 
+
+8/8/5q2/8/7k/1K6/8/8 w - - 0 1
+- mate with KQ vs K
+
+r1b3kr/3pR1p1/ppq4p/5P2/4Q3/B7/P5PP/5RK1 w - - 1 0
+- isn't working
+
+r3r1k1/1b1nq2p/p1p1N3/2p2p2/1b1PNP2/PQ1B3P/4RP2/5RK1 b - - 0 24
+blunders Qxd6.. stuck in q search...

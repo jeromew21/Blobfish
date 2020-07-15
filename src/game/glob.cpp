@@ -121,16 +121,6 @@ std::string colorToString(Color c) {
     }
 }
 
-//LSB (rightmost, uppermost)
-int bitscanForward(u64 x) { //checked, should work
-    return __builtin_ffsll(x) - 1;
-}
-
-//MSB (leftmost, uppermost)
-int bitscanReverse(u64 x) {
-    return 63 - __builtin_clzll(x);
-}
-
 int hadd(u64 x) { //checked, should work
    int count = 0;
    while (x) {
@@ -156,38 +146,31 @@ int min(int i1, int i2) {
     }
 }
 
-std::array<u64, 64> bitscanAll(u64 x, int &outsize) {
-    std::array<u64, 64> result;
+void bitscanAll(std::array<u64, 64>& arr, u64 x, int &outsize) {
+    outsize = 0;
+
+    while (x) {
+        int k = bitscanForward(x);
+        u64 bs = ((u64) 1) << k;
+        arr[outsize] = bs;
+        x &= ~bs;
+        outsize++;
+    }
+    /*
     int count = 0;
     u64 mask = 1;
     int i = 0;
     while (i < 64) {
         u64 test = x & mask;
         if (test) {
-            result[count] = mask;
+            arr[count] = mask;
             count++;
         }
         mask = mask << 1;
         i++;
     }
     outsize = count;
-
-    return result;
-}
-
-std::vector<u64> bitscanAll(u64 x) {
-    std::vector<u64> result;
-    u64 mask = 1;
-    int i = 0;
-    while (i < 64) {
-        u64 test = x & mask;
-        if (test) {
-            result.push_back(mask);
-        }
-        mask = mask << 1;
-        i++;
-    }
-    return result;
+    */
 }
 
 void dump64(u64 x) { //Checked, should work
@@ -221,18 +204,11 @@ int u64ToCol(u64 space) {
     return bitscanForward(space) % 8;
 }
 
-int u64ToIndex(u64 space) {
-    return bitscanForward(space);
-}
-
 u64 u64FromPair(int r, int c) {
     int shift = r*8 + c; //flatten index
     return u64FromIndex(shift);
 }
 
-u64 u64FromIndex(int i) { //fixed, should work
-    return ((u64) 1) << i;
-}
 
 std::string yesorno(bool b) {
     return b ? "yes" : "no";

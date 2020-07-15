@@ -19,16 +19,19 @@ class UCIInterface {
       void think()
       {
          //iterative deepening
+         auto start = std::chrono::high_resolution_clock::now();
+
          int depth = 0;
+         int nodeCount = 1;
          int depthLimit = INTMAX;
          int bestScore = INTMIN;
          bestMove = board.legalMoves()[0];
          for (depth = 0; depth < depthLimit; depth++) {
             int score;
             //send principal variation move from previous
-            Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove);
+            Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove, nodeCount, start);
             if (_notThinking) {
-               
+               debugLog("search interrupted");
                if (!(calcMove == bestMove)) {
                   //either the score is better or worse.
                   if (score > bestScore) { //if we get a better score in stopped search
@@ -42,15 +45,15 @@ class UCIInterface {
                } //else: same move as last layer
                break;
             } 
-            if (score >= INTMAX || score <= INTMIN) {
+            if (abs(score - INTMAX) < 30 || abs(score - INTMIN) < 30) {
                bestMove = calcMove;
-               /*
-               int y = (int) ceil( (double) depth / 2.0 );
-               if (score <= INTMIN) {
+               double plies = abs(abs(score) - INTMAX);
+               int y = (int) ceil(plies / 2.0);
+               //y += 1;
+               if (score < 0) {
                   y *= -1;
                }
                sendCommand("info score mate " + std::to_string(y));
-               */
                sendCommand("bestmove " + board.moveToUCIAlgebraic(bestMove));
                debugLog("RUN() reached end");
                return;

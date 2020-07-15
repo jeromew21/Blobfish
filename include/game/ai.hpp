@@ -10,6 +10,8 @@
 const size_t TABLE_SIZE = 32768;
 const size_t CAPACITY = 32768;
 
+const size_t MINI_TABLE_SIZE = 16384;
+
 enum NodeType {
     PV = 0, Cut = 1, All = 2
 };
@@ -45,7 +47,7 @@ struct TableBucket {
 
 };
 
-void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score, int time);
+void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score, std::chrono::_V2::system_clock::time_point start);
 
 class TranspositionTable {
     TableBucket _arr[TABLE_SIZE];
@@ -83,9 +85,42 @@ class TranspositionTable {
                 //no overwrite
                 members += 1;
             }
-            if (bucket->first.nodeType == NodeType::PV && node.nodeType != NodeType::PV) {
-                return;
+            bucket->first = node;
+            bucket->second = score;
+        }
+};
+
+class MiniTable {
+    TableBucket _arr[MINI_TABLE_SIZE];
+
+    public: 
+        MiniTable() {
+        }
+
+        TableBucket* find(TableNode &node) {
+            u64 hashval = node.hash;
+            int bucketIndex = hashval % MINI_TABLE_SIZE;
+            TableBucket* bucket = _arr + bucketIndex;
+            if (bucket->first == node) {
+                return bucket;
             }
+            return NULL;
+        }
+
+        TableBucket* end() {
+            return NULL;
+        }
+
+        void clear() {
+            for (size_t i = 0; i < MINI_TABLE_SIZE; i++) {
+                _arr[i].first.hash = 0;
+            }
+        }
+
+        void insert(TableNode &node, int score) {
+            u64 hashval = node.hash;
+            int bucketIndex = hashval % MINI_TABLE_SIZE;
+            TableBucket* bucket = _arr + bucketIndex;
             bucket->first = node;
             bucket->second = score;
         }
@@ -98,7 +133,7 @@ namespace AI {
 
     TranspositionTable& getTable();
 
-    Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore, Move &prevPv);
+    Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore, Move &prevPv, int &count, std::chrono::_V2::system_clock::time_point start);
 
     int quiescence(Board &board, int plyCount, int alpha, 
         int beta, std::atomic<bool> &stop, int &count, int depthLimit);
@@ -108,6 +143,8 @@ namespace AI {
     void orderMoves(Board &board, std::vector<Move> &mvs);
 
     void init();
+
+    void clearPvTable();
 }
 
 

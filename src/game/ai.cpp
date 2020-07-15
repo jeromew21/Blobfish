@@ -1,6 +1,7 @@
 #include <game/ai.hpp>
 
 TranspositionTable table;
+MiniTable pvTable;
 
 u64 BACK_RANK[2];
 
@@ -62,12 +63,10 @@ int AI::flippedEval(Board &board) {
     }
 }
 
-Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore, Move &prevPv) {
-    sendCommand("info string ID DEPTH=" + std::to_string(depth));
-    TableNode node(board, depth, NodeType::PV);
-    int count = 1;
+Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore, Move &prevPv, int &count, std::chrono::_V2::system_clock::time_point start) {
+    //IID
 
-    
+    TableNode node(board, depth, NodeType::PV);
 
     auto moves = board.legalMoves();
     orderMoves(board, moves);
@@ -109,8 +108,6 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
 
     bool raisedAlpha = false;
     
-    auto start = std::chrono::high_resolution_clock::now();
-
     while (moves.size() > 0) {
         Move mv = moves.back();
         moves.pop_back();
@@ -134,25 +131,23 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscor
             outscore = alpha;
             node.bestMove = chosen;
 
-            table.insert(node, alpha); //new PV
-            auto stop = std::chrono::high_resolution_clock::now(); 
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start); //or milliseconds
-            int ms = duration.count();
-            sendPV(board, depth, chosen, count, alpha, ms);
+            table.insert(node, alpha); //new PV found
+            pvTable.insert(node, alpha);
+            
+            sendPV(board, depth, chosen, count, alpha, start);
             sendCommand("info hashfull " + std::to_string(table.ppm()));
         }
     }
     if (!raisedAlpha) {
         table.insert(node, alpha);
-        auto stop = std::chrono::high_resolution_clock::now(); 
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start); //or milliseconds
-        int ms = duration.count();
-        sendPV(board, depth, chosen, count, alpha, ms);
+        pvTable.insert(node, alpha); //new PV
+        sendPV(board, depth, chosen, count, alpha, start);
     }
     return chosen;
 }
 
-void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score, int time) {
+void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score, std::chrono::_V2::system_clock::time_point start) {
+    if (depth == 0) return;
     std::string pv = " pv " + board.moveToUCIAlgebraic(pvMove);
 
     board.makeMove(pvMove);
@@ -160,18 +155,14 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score, int
 
     for (int k = 0; k < depth-1; k++) {
         TableNode nodeSearch(board, depth, NodeType::PV);
-        auto search = table.find(nodeSearch);
-        if (search != table.end()) {
+        auto search = pvTable.find(nodeSearch);
+        if (search != pvTable.end()) {
             TableNode node = search->first;
-            if (node.nodeType == NodeType::PV || node.nodeType == NodeType::Cut) {
-                Move mv = node.bestMove;
-                pv += " ";
-                pv += board.moveToUCIAlgebraic(mv);
-                board.makeMove(mv);
-                mc ++;
-            } else {
-                break;
-            }
+            Move mv = node.bestMove;
+            pv += " ";
+            pv += board.moveToUCIAlgebraic(mv);
+            board.makeMove(mv);
+            mc ++;
         } else {
             break;
         }
@@ -180,8 +171,12 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score, int
         board.unmakeMove();
     }
 
+    auto stop = std::chrono::high_resolution_clock::now(); 
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start); //or milliseconds
+    int time = duration.count();
+
     sendCommand(
-        "info depth " + std::to_string(depth+1) + 
+        "info depth " + std::to_string(depth) + 
         " score cp " + std::to_string(score) + 
         " time " + std::to_string(time) + 
         " nps " + std::to_string( (int) ((double)nodeCount/((double)time/1000.0))) + 
@@ -201,12 +196,12 @@ int AI::quiescence(Board &board, int plyCount, int alpha,
     BoardStatus status = board.status();
 
     if (status != BoardStatus::Playing || plyCount >= depthLimit) {
-        int score = AI::flippedEval(board); // store?
         if (status == BoardStatus::BlackWin || status == BoardStatus::WhiteWin) {
             //we got mated
-            score += plyCount;
+            baseline += plyCount;
+            return baseline;
         }
-        return baseline; //why was this ommitted?
+        return min(alpha, baseline); //alpha vs baseline...
     }    
 
     if (plyCount == 0) {
@@ -312,6 +307,10 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
     mvs.insert(mvs.end(), winningCaptures.begin(), winningCaptures.end());
 }
 
+void AI::clearPvTable() {
+    pvTable.clear();
+}
+
 
 int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta, 
     std::atomic<bool> &stop, int &count) {
@@ -337,7 +336,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta
     Move pvMove;
     bool foundHashMove = false;
 
-    TableNode node(board, depth, NodeType::All);
+    TableNode node(board, depth, NodeType::PV);
+
+    /*
     auto found = table.find(node);
     if (found != table.end()) {
         if (found->first.depth >= depth) { //searched already to a higher depth
@@ -358,8 +359,8 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta
                 return found->second;
             }
         }
-        
     }
+    */
 
     auto moves = board.legalMoves();
     orderMoves(board, moves);
@@ -402,9 +403,25 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta
     int movesSearched = 0;
     bool checkExtend = nodeIsCheck;
 
+    bool futilityPrune = true;
+
+    int fscore = 0;
+    if (depth == 1 && futilityPrune) {
+        fscore = AI::flippedEval(board);
+    }
+
     while (moves.size() > 0) {
         Move mv = moves.back();
         moves.pop_back();
+
+        if (futilityPrune && depth == 1) {
+            if ((mv.destFormer == Empty && !(mv == pvMove)) && (!board.isCheckingMove(mv) && !nodeIsCheck)) {
+                if (fscore + 500 < alpha) {
+                    continue;
+                }
+            }
+        }
+
 
         board.makeMove(mv);
 
@@ -442,5 +459,8 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta
         }
     }
     table.insert(node, alpha); //store node
+    if (node.nodeType == NodeType::PV) {
+        pvTable.insert(node, alpha); //store node
+    }
     return alpha;
 }

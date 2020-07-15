@@ -71,6 +71,27 @@ struct Move
       return mv;
    }
 
+   Move(
+      MoveType moveType0, 
+      PieceType mover0,
+      u64 src0, 
+      u64 dest0, 
+      PieceType destFormer0,
+      PieceType promotion0
+   ) { //Return a value for a default move
+      moveType = moveType0;
+      src = src0;
+      dest = dest0;
+      mover = mover0;
+      destFormer = destFormer0;
+      promotion = promotion0;
+   }
+
+   Move() {
+      src = 0;
+      dest = 0;
+   }
+
    bool operator==(const Move &other) const {
       return (src == other.src && dest == other.dest) && (promotion == other.promotion);
    }

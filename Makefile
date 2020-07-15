@@ -13,9 +13,8 @@
 # **************************************************************
 #
 
-CXX      := -c++
-CXXFLAGS := -std=c++11 -pedantic-errors -Wall -Wextra -pthread
-LDFLAGS  := -L/usr/lib -lstdc++ -lm
+CXX      := -clang++
+CXXFLAGS := -std=c++11 -pedantic-errors -Wall -Wextra -pthread -ffast-math -O3
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
 APP_DIR  := $(BUILD)/apps
@@ -31,11 +30,11 @@ all: build $(APP_DIR)/$(TARGET)
 
 $(OBJ_DIR)/%.o: %.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@ 
 
 $(APP_DIR)/$(TARGET): $(OBJECTS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(APP_DIR)/$(TARGET) $^ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $(APP_DIR)/$(TARGET) $^
 
 .PHONY: all build clean debug release
 

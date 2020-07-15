@@ -14,16 +14,11 @@ class Board
   private:
     bool _hasGeneratedMoves;
 
-    std::vector<PieceType> _moverBuffer[2];
-    std::vector<u64> _srcBuffer[2];
-    std::vector<u64> _destBuffer[2];
-
-    std::vector<Move> _quietMoveBuffer;
-    std::vector<Move> _tacticalMoveBuffer;
     std::vector<Move> _legalMovesBuffer;
+    std::vector<Move> _tacticalMoveBuffer;
+    std::vector<Move> _quietMoveBuffer;
 
     std::vector<PseudoLegalData> _pseudoStack;
-
 
     //incremental update zobrist methods
     void _removePiece(PieceType p, u64 location);
@@ -39,15 +34,10 @@ class Board
     u64 _isUnderAttack(u64 target, Color byWho); //return a set of pieces that attack the target
     PieceType _leastValuablePiece(u64 sqset, Color color, u64 &outposition); //returns the least valuable piece of color color in sqset
 
-    std::vector<PieceType> _attackers(u64 target, Color byWho);
-    u64 _attackSet(u64 target, Color c);
-    u64 _attackSet(u64 target);
-
     void _generatePseudoLegal();
 
     u64 _bishopAttacks(u64 index64, u64 occupants);
     u64 _rookAttacks(u64 index64, u64 occupants);
-
     u64 _knightAttacks(u64 index64);
     u64 _kingAttacks(u64 index64);
     u64 _pawnAttacks(u64 index64, Color color, u64 enemies);
@@ -60,8 +50,8 @@ class Board
     BoardStateStack stack;
     u64 bitboard[12];
 
-    u64 pieceAttacks[12]; //pseudolegal attack moves
-    u64 pieceMoves[12]; //pseudolegal all moves
+    std::array<u64, 64> attackMap;
+    std::array<u64, 64> defendMap;
 
     bool verifyLegal(Move &mv);
 
@@ -92,6 +82,7 @@ class Board
 
     //costly calls
     PieceType pieceAt(u64 space);
+    PieceType pieceAt(u64 space, Color color);
     int material(Color color);
     int material();
     std::string fen();

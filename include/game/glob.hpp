@@ -52,25 +52,37 @@ std::string squareName(int square);
 int indexFromSquareName(std::string alg);
 
 u64 u64FromPair(int r, int c);
-u64 u64FromIndex(int i);
+
+//LSB (rightmost, uppermost)
+inline int bitscanForward(u64 x) { //checked, should work
+    return __builtin_ffsll(x) - 1;
+}
+
+//MSB (leftmost, uppermost)
+inline int bitscanReverse(u64 x) {
+    return 63 - __builtin_clzll(x);
+}
+
+inline u64 u64FromIndex(int i) { //fixed, should work
+    return ((u64) 1) << i;
+}
 
 int u64ToRow(u64 space);
 int u64ToCol(u64 space);
-int u64ToIndex(u64 space);
+inline int u64ToIndex(u64 space) {
+    return bitscanForward(space);
+}
 
 void dump64(u64 x);
 
 bool inBounds(int y, int x);
 
-int bitscanForward(u64 x);
-int bitscanReverse(u64 x);
 int hadd(u64 x);
 
 int max(int i1, int i2);
 int min(int i1, int i2);
 
-std::vector<u64> bitscanAll(u64 x); //hotspot
-std::array<u64, 64> bitscanAll(u64 x, int &outsize); //hotspot
+void bitscanAll(std::array<u64, 64>& arr, u64 x, int &outsize); //hotspot
 
 int rand100();
 void srand100(int seed);
