@@ -349,7 +349,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   TableNode node(board, depth, NodeType::PV);
 
-  /*
   auto found = table.find(node);
   if (found != table.end()) {
       if (found->first.depth >= depth) { //searched already to a higher depth
@@ -371,7 +370,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
           }
       }
   }
-  */
 
   auto moves = board.legalMoves();
   orderMoves(board, moves);
