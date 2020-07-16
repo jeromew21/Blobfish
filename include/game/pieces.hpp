@@ -17,17 +17,19 @@ const PieceType B_Rook = 9;
 const PieceType B_Queen = 10;
 const PieceType B_King = 11;
 
-
 const PieceType Empty = 12;
 
-const int MATERIAL_TABLE[12] = {100, 350, 350, 525, 1000, 10000, 100, 350, 350, 525, 1000, 10000};
+const int MATERIAL_TABLE[12] = {100, 350, 350, 525, 1000, 10000,
+                                100, 350, 350, 525, 1000, 10000};
 
 std::string pieceToString(PieceType piece);
 std::string pieceToStringAlph(PieceType piece);
 std::string pieceToStringFen(PieceType piece);
 std::string pieceToStringAlphLower(PieceType piece);
 PieceType pieceFromString(std::string val);
-Color flipColor(Color color);
+
+inline Color flipColor(Color color) { return 1 & (~color); }
+
 Color colorOf(PieceType piece);
 PieceType pieceIndexFromColor(Color color);
 

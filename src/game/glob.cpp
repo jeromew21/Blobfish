@@ -9,11 +9,12 @@ void debugLog(const std::string& f) {
 
     fileout.open("debuglog.txt", std::ios_base::app);
     fileout << f << "\n";
-    std::cout << "info string " << f << std::endl;
+    //std::cout << "info string " << f << std::endl;
     fileout.close();
 }
 
 void sendCommand(const std::string& cmd) {
+    debugLog(" < " + cmd);
     std::cout << cmd << std::endl;
 }
 
@@ -80,6 +81,7 @@ std::string statusToString(BoardStatus bs, bool concise) {
             case BoardStatus::Draw:
                 return "1/2-1/2";
             default:
+                debugLog("bad status");
                 throw;
         }
     } else {
@@ -96,6 +98,7 @@ std::string statusToString(BoardStatus bs, bool concise) {
             case BoardStatus::Stalemate:
                 return "Stalemate";
             default:
+                debugLog("bad status");
                 throw;
         }
     }
@@ -117,17 +120,28 @@ std::string colorToString(Color c) {
     } else if (c == Black) {
         return "Black";
     } else {
+        debugLog("bad color");
         throw;
     }
 }
 
 int hadd(u64 x) { //checked, should work
+    int count = 0;
+    while (x) {
+        int k = bitscanForward(x);
+        u64 bs = ((u64) 1) << k;
+        x &= ~bs;
+        count++;
+    }
+    return count;
+    /*
    int count = 0;
    while (x) {
        count++;
        x &= x - 1; // reset LS1B
    }
    return count;
+   */
 }
 
 int max(int i1, int i2) {

@@ -13,6 +13,8 @@ class Board
 {
   private:
     bool _hasGeneratedMoves;
+    bool _statusDirty;
+    BoardStatus _status;
 
     std::vector<Move> _legalMovesBuffer;
     std::vector<Move> _tacticalMoveBuffer;
@@ -100,6 +102,7 @@ class Board
     void dump();
     bool canUndo();
     Move moveFromAlgebraic(const std::string& alg);
+    std::string moveToAlgebraicNoDisambig(const Move &mv);
     std::string moveToExtAlgebraic(const Move &mv);
     std::string moveToUCIAlgebraic(const Move &mv);
     std::string moveToAlgebraic(const Move &mv);
