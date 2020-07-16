@@ -6,14 +6,8 @@
 
 #include <game/move.hpp>
 
-struct PieceIndexTuple {
-  // representing a bitboard index (piece) and an indexed location.
-  PieceType piece;
-  int index;
-  PieceIndexTuple(PieceType p, int l) {
-    piece = p;
-    index = l;
-  }
+struct LazyMovegen {
+  
 };
 
 struct BoardStateNode {

@@ -83,6 +83,7 @@ int max(int i1, int i2);
 int min(int i1, int i2);
 
 void bitscanAll(std::array<u64, 64>& arr, u64 x, int &outsize); //hotspot
+void bitscanAllInt(std::array<int, 64>& arr, u64 x, int &outsize); //hotspot
 
 int rand100();
 void srand100(int seed);

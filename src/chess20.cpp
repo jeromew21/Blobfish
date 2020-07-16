@@ -9,17 +9,19 @@ private:
 
 public:
   std::atomic<bool> _notThinking{true};
-  std::atomic<bool> _doneThinking{false};
+  std::atomic<bool> _stopKiller{false};
   Move bestMove;
   Board board;
   std::thread _task;
 
   std::thread _stopperTask;
 
-  UCIInterface() { _notThinking = true; _doneThinking = false; }
+  UCIInterface() { 
+    _notThinking = true; 
+    _stopKiller = false;
+  }
 
   void think() {
-    _doneThinking = false;
     sendCommand("info string think() routine started");
     // iterative deepening
     auto start = std::chrono::high_resolution_clock::now();
@@ -59,6 +61,7 @@ public:
         if (score < 0) {
           y *= -1;
         }
+        sendCommand("info string mate plies " + std::to_string(plies));
         sendCommand("info score mate " + std::to_string(y));
         break;
       } else {               // it finishes at that layer
@@ -68,29 +71,44 @@ public:
     }
     sendCommand("bestmove " + board.moveToUCIAlgebraic(bestMove));
     sendCommand("info string think() routine ended");
-    _doneThinking = true;
+    _stopKiller = true;
+    _notThinking = true;
   }
 
   void stopThinking() {
     if (_task.joinable()) {
       _notThinking = true;
-      sendCommand("info string join signal sent to thread");
       _task.join();
-      sendCommand("info string thread stopped and joined");
-    }      
+    }
+    _stopKiller = true;
+    if (_stopperTask.joinable()) {
+      _stopperTask.join();
+    }
   }
 
   void delayStop(int msecs) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(msecs));
-    _notThinking = true;
+    auto start = std::chrono::high_resolution_clock::now();
+    while(true) {
+      auto stop = std::chrono::high_resolution_clock::now();
+      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+          stop - start); // or milliseconds
+      int time = duration.count();
+      if (time > msecs) {
+        break;
+      }
+      if (_stopKiller) {
+        return; //
+      }
+    }
+    _notThinking = true; // stop the other thread
   }
 
   void startThinking(int msecs, bool inf) {
     if (_task.joinable()) {
       stopThinking();
     }
-    _doneThinking = false;
     _notThinking = false;
+    _stopKiller = false;
     sendCommand("info string thread launched");
     _task = std::thread(&UCIInterface::think, this);
     if (!inf) {

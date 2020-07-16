@@ -123,7 +123,10 @@ r1bqkb1r/pp3ppp/2n1p3/3p3n/2pP1B2/2N2NPB/PPP1PP1P/R2Q1RK1 w kq - 2 8
 - mate with KQ vs K
 
 r1b3kr/3pR1p1/ppq4p/5P2/4Q3/B7/P5PP/5RK1 w - - 1 0
-- isn't working
+- isn't working (fixed due to mate glitch)
 
 r3r1k1/1b1nq2p/p1p1N3/2p2p2/1b1PNP2/PQ1B3P/4RP2/5RK1 b - - 0 24
-blunders Qxd6.. stuck in q search...
+- blunders Qxd6.. stuck in q search... (fixed???)
+
+5k2/1R6/4r3/7K/P7/7P/1b6/8 b - - 0 70
+- wtf is Re7

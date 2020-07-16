@@ -390,15 +390,15 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   bool nodeIsCheck = board.isCheck();
 
-  bool nullmove = false;
+  bool nullmove = true;
   // NULL MOVE PRUNE
   // MAKE SURE NOT IN CHECK??
   if (nullmove && !nodeIsCheck) {
     Move mv = Move::NullMove();
     board.makeMove(mv);
     int score =
-        -1 * AI::alphaBetaNega(board, depth - 2, plyCount + 1, -1 * beta,
-                               -1 * alpha, stop, count); // limit depth
+        -1 * AI::alphaBetaNega(board, depth - 1, plyCount + 1, -1 * beta,
+                               -1 * alpha, stop, count);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off

@@ -160,9 +160,19 @@ int min(int i1, int i2) {
     }
 }
 
+void bitscanAllInt(std::array<int, 64>& arr, u64 x, int &outsize) {
+    outsize = 0;
+    while (x) {
+        int k = bitscanForward(x);
+        u64 bs = ((u64) 1) << k;
+        arr[outsize] = k;
+        x &= ~bs;
+        outsize++;
+    }
+}
+
 void bitscanAll(std::array<u64, 64>& arr, u64 x, int &outsize) {
     outsize = 0;
-
     while (x) {
         int k = bitscanForward(x);
         u64 bs = ((u64) 1) << k;
@@ -170,21 +180,6 @@ void bitscanAll(std::array<u64, 64>& arr, u64 x, int &outsize) {
         x &= ~bs;
         outsize++;
     }
-    /*
-    int count = 0;
-    u64 mask = 1;
-    int i = 0;
-    while (i < 64) {
-        u64 test = x & mask;
-        if (test) {
-            arr[count] = mask;
-            count++;
-        }
-        mask = mask << 1;
-        i++;
-    }
-    outsize = count;
-    */
 }
 
 void dump64(u64 x) { //Checked, should work
