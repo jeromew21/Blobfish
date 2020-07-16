@@ -296,6 +296,10 @@ operation.*/
       exit(0);
     } else if (tokens[0] == "dump") {
       board.dump(true);
+    } else if (tokens[0] == "unmake") {
+      if (board.canUndo()) {
+        board.unmakeMove();
+      }
     }
   }
 

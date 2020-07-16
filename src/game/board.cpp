@@ -330,217 +330,8 @@ bool Board::isCheck() {
 }
 
 std::vector<Move> Board::produceUncheckMoves() {
-  std::vector<Move> result;
-  Color color = turn();
-  Color flip = flipColor(color);
-  u64 friendlies = occupancy(color);
-  u64 enemies = occupancy(flip);
-  u64 occ = friendlies | enemies;
-
-  PieceType myKing = color == White ? W_King : B_King;
-  u64 kingBB = bitboard[myKing];
-
-  std::vector<PieceType> attackers;
-  u64 attackerPositions = defendMap[u64ToIndex(kingBB)];
-  PieceType s = pieceIndexFromColor(flip);
-  for (PieceType p = s; p < s + 6; p++) {
-    if (bitboard[p] & attackerPositions) {
-      attackers.push_back(p);
-    }
-  }
-  int checkCount = attackers.size();
-
-  // can move away from check
-  int count = 0;
-  std::array<u64, 64> arr;
-
-  bitscanAll(arr, attackMap[u64ToIndex(kingBB)] & ~friendlies, count);
-  for (int k = 0; k < count; k++) {
-    Move mv = Move::DefaultMove(myKing, kingBB, arr[k]);
-    if (mv.dest & occ) {
-      mv.destFormer = pieceAt(mv.dest);
-    }
-    if (verifyLegal(mv)) {
-      result.push_back(mv);
-    }
-  }
-
-  if (checkCount == 1) {
-    // can simply capture checking piece.
-    // if not a knight, we can interpose in ray
-    PieceType checker = attackers[0];
-    u64 target = bitboard[checker] & attackerPositions;
-    // amend target with rayset
-    if (checker % 6 != W_Knight && checker % 6 != W_Pawn) {
-      for (int d = 0; d < 4; d++) {
-        u64 ray = _rookRay(kingBB, d, occ);
-        if (target & ray) {
-          target |= ray;
-        }
-        ray = _bishopRay(kingBB, d, occ);
-        if (target & ray) {
-          target |= ray;
-        }
-      }
-    }
-
-    // find any of our pieces (not king) that can capture it
-    PieceType s0 = pieceIndexFromColor(color);
-    PieceType s1 = s0 + 5;
-
-    bitscanAll(arr, target, count); // load all wanted destinations
-    for (int i = 0; i < count; i++) {
-      u64 dest = arr[i];
-      int wantedDestIndex = u64ToIndex(arr[i]);
-      // now look in the defend map for the destination
-      u64 attackers = defendMap[wantedDestIndex];
-      for (PieceType p = s0; p < s1; p++) {
-        u64 srcs = bitboard[p] & attackers;
-        if (srcs) {
-          int c0 = 0;
-          std::array<u64, 64> a0;
-          bitscanAll(a0, srcs, c0);
-          for (int j = 0; j < c0; j++) {
-            u64 src = a0[j];
-            Move mv = Move::DefaultMove(p, src, dest);
-            if (mv.dest & occ) {
-              mv.destFormer = pieceAt(mv.dest);
-            }
-            if (verifyLegal(mv)) {
-              result.push_back(mv);
-            }
-          }
-        }
-      }
-    }
-  } else if (checkCount == 0) {
-    // not in check but we st ill want to produce at least one move to disprove
-    // stalemate. todo:: get next legal move
-    if (result.size() > 0)
-      return result;
-    Color c = turn();
-    u64 occ = occupancy();
-    u64 friendlies = occupancy(c);
-    int c0 = 0;
-    std::array<u64, 64> a0;
-    int count = 0;
-    std::array<u64, 64> arr;
-    PieceType s = pieceIndexFromColor(c);
-    for (PieceType mover = s; mover < s + 6; mover++) {
-      bitscanAll(a0, bitboard[mover], c0);
-      for (int i = 0; i < c0; i++) {
-        u64 src = a0[i];
-        int srci = u64ToIndex(src);
-        u64 destMap = attackMap[srci] & ~friendlies;
-        int row = u64ToRow(src);
-        if (mover == W_Pawn) {
-          if (boardState[EN_PASSANT_INDEX] >= 0 &&
-              u64FromIndex(boardState[EN_PASSANT_INDEX]) & destMap) {
-            Move mv =
-                Move::SpecialMove(MoveType::EnPassant, mover, src,
-                                  u64FromIndex(boardState[EN_PASSANT_INDEX]));
-            mv.destFormer = B_Pawn;
-            _tacticalMoveBuffer.push_back(mv);
-          }
-          destMap &= enemies;
-          u64 single = PAWN_MOVE_CACHE[srci][White] & ~occ;
-          destMap |= single;
-          if (single && row == 1) {
-            destMap |= PAWN_DOUBLE_CACHE[srci][White] & ~occ;
-          }
-        } else if (mover == B_Pawn) {
-          if (boardState[EN_PASSANT_INDEX] >= 0 &&
-              u64FromIndex(boardState[EN_PASSANT_INDEX]) & destMap) {
-            Move mv =
-                Move::SpecialMove(MoveType::EnPassant, mover, src,
-                                  u64FromIndex(boardState[EN_PASSANT_INDEX]));
-            mv.destFormer = W_Pawn;
-            _tacticalMoveBuffer.push_back(mv);
-          }
-          destMap &= enemies;
-          u64 single = PAWN_MOVE_CACHE[srci][Black] & ~occ;
-          destMap |= single;
-          if (single && row == 6) {
-            destMap |= PAWN_DOUBLE_CACHE[srci][Black] & ~occ;
-          }
-        }
-        bitscanAll(arr, destMap, count);
-        for (int k = 0; k < count; k++) {
-          u64 dest = arr[k];
-          if (mover == W_Pawn || mover == B_Pawn) {
-            int row0 = u64ToRow(src);
-            int row1 = u64ToRow(dest);
-            if (abs(row0 - row1) > 1) {
-              Move mv = Move::DoublePawnMove(mover, src, dest);
-              if (verifyLegal(mv)) {
-                result.push_back(mv);
-                return result;
-              }
-            } else if (row1 == 0) {
-              for (PieceType prom = B_Knight; prom < B_Knight + 4; prom++) {
-                Move mv = Move::PromotionMove(mover, src, dest, prom);
-                if (occ & dest) {
-                  mv.destFormer = pieceAt(dest);
-                }
-                if (verifyLegal(mv)) {
-                  result.push_back(mv);
-                  return result;
-                }
-              }
-            } else if (row1 == 7) {
-              for (PieceType prom = W_Knight; prom < W_Knight + 4; prom++) {
-                Move mv = Move::PromotionMove(mover, src, dest, prom);
-                if (occ & dest) {
-                  mv.destFormer = pieceAt(dest);
-                }
-                if (verifyLegal(mv)) {
-                  result.push_back(mv);
-                  return result;
-                }
-              }
-            } else {
-              if (boardState[EN_PASSANT_INDEX] >= 0 &&
-                  u64FromIndex(boardState[EN_PASSANT_INDEX]) == dest) {
-                Move mv =
-                    Move::SpecialMove(MoveType::EnPassant, mover, src, dest);
-                if (mover == W_Pawn) {
-                  mv.destFormer = B_Pawn;
-                } else {
-                  mv.destFormer = W_Pawn;
-                }
-                if (verifyLegal(mv)) {
-                  result.push_back(mv);
-                  return result;
-                }
-              } else {
-                Move mv = Move::DefaultMove(mover, src, dest);
-                // check legality
-                if (occ & dest) {
-                  mv.destFormer = pieceAt(dest);
-                }
-                if (verifyLegal(mv)) {
-                  result.push_back(mv);
-                  return result;
-                }
-              }
-            }
-          } else {
-            Move mv = Move::DefaultMove(mover, src, dest);
-            // check legality
-            if (occ & dest) {
-              mv.destFormer = pieceAt(dest);
-            }
-            if (verifyLegal(mv)) {
-              result.push_back(mv);
-              return result;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return result;
+  //todo make this work
+  return legalMoves();
 }
 
 PieceType Board::pieceAt(u64 space, Color c) {
@@ -577,95 +368,78 @@ Move Board::moveFromAlgebraic(const std::string &alg) {
       return mv;
     }
   }
-  return Move::END();
+  return Move::NullMove();
 }
 
-std::string Board::moveToExtAlgebraic(const Move &mv) {
-  if (mv.moveType == MoveType::CastleLong) {
+std::string Board::moveToExtAlgebraic(Move mv) {
+  if (mv.getTypeCode() == MoveTypeCode::CastleLong) {
     return "O-O-O";
-  } else if (mv.moveType == MoveType::CastleShort) {
+  } else if (mv.getTypeCode() == MoveTypeCode::CastleShort) {
     return "O-O";
   }
   std::string result;
-  if (mv.mover != W_Pawn && mv.mover != B_Pawn) {
-    result += pieceToStringAlph(mv.mover);
+  PieceType mover = pieceAt(mv.getSrc());
+  if (mover != W_Pawn && mover != B_Pawn) {
+    result += pieceToStringAlph(mover);
   }
-  result += squareName(mv.src);
-  if (mv.dest & occupancy() || mv.moveType == MoveType::EnPassant) {
+  result += squareName(mv.getSrc());
+  if (mv.getDest() & occupancy() ||
+      mv.getTypeCode() == MoveTypeCode::EnPassant) {
     result += "x";
   } else {
     result += "-";
   }
-  result += squareName(mv.dest);
-  if (mv.moveType == MoveType::Promotion) {
-    result += pieceToStringAlph(mv.promotion);
+  result += squareName(mv.getDest());
+  if (mv.isPromotion()) {
+    result += pieceToStringAlph(mv.getPromotingPiece());
   }
   return result;
 }
 
-std::string Board::moveToUCIAlgebraic(const Move &mv) {
+std::string Board::moveToUCIAlgebraic(Move mv) {
   std::string result;
-  result += squareName(mv.src);
-  result += squareName(mv.dest);
-  if (mv.moveType == MoveType::Promotion) {
-    result += pieceToStringAlphLower(mv.promotion);
+  result += squareName(mv.getSrc());
+  result += squareName(mv.getDest());
+  if (mv.isPromotion()) {
+    result += pieceToStringAlphLower(mv.getPromotingPiece());
   }
   return result;
 }
 
 bool Board::canUndo() { return stack.canPop(); }
 
-std::string Board::moveToAlgebraicNoDisambig(const Move &mv) {
-    if (mv.moveType == MoveType::CastleLong) {
+std::string Board::moveToAlgebraic(Move mv) {
+  if (mv.getTypeCode() == MoveTypeCode::CastleLong) {
     return "O-O-O";
-  } else if (mv.moveType == MoveType::CastleShort) {
+  } else if (mv.getTypeCode() == MoveTypeCode::CastleShort) {
     return "O-O";
   }
   std::string result;
-  if (mv.mover != W_Pawn && mv.mover != B_Pawn) {
-    result += pieceToStringAlph(mv.mover);
-  }
-  if (mv.destFormer != Empty) {
-    if (mv.mover == W_Pawn || mv.mover == B_Pawn) {
-      result += FILE_NAMES[u64ToCol(mv.src)];
-    }
-    result += "x";
-  }
-  result += squareName(mv.dest);
-  if (mv.moveType == MoveType::Promotion) {
-    result += "=" + pieceToStringAlph(mv.promotion);
-  }
-  return result;
-}
+  PieceType mover = pieceAt(mv.getSrc());
 
-std::string Board::moveToAlgebraic(const Move &mv) {
-  if (mv.moveType == MoveType::CastleLong) {
-    return "O-O-O";
-  } else if (mv.moveType == MoveType::CastleShort) {
-    return "O-O";
-  }
-  std::string result;
-  if (mv.mover != W_Pawn && mv.mover != B_Pawn) {
-    result += pieceToStringAlph(mv.mover);
+  if (mover != W_Pawn && mover != B_Pawn) {
+    result += pieceToStringAlph(mover);
   }
   // DISAMBIGUATE
-  if ((mv.mover == W_Rook || mv.mover == B_Rook) ||
-      (mv.mover == W_Knight || mv.mover == B_Knight) ||
-      (mv.mover == W_Queen || mv.mover == B_Queen) ||
-      (mv.mover == W_Bishop || mv.mover == W_Bishop)) {
+  if ((mover == W_Rook || mover == B_Rook) ||
+      (mover == W_Knight || mover == B_Knight) ||
+      (mover == W_Queen || mover == B_Queen) ||
+      (mover == W_Bishop || mover == W_Bishop)) {
     auto moves = legalMoves();
     std::string colDisambig = "";
     std::string rowDisambig = "";
     int overlapCount = 0;
     for (Move &testMove : moves) {
-      if (mv.mover == testMove.mover && mv.dest == testMove.dest) {
+      PieceType testmover = pieceAt(mv.getSrc());
+
+      if (mover == testmover && mv.getDest() == testmover) {
         // if col is different, add col
-        if (u64ToCol(mv.src) != u64ToCol(testMove.src)) {
-          colDisambig = FILE_NAMES[u64ToCol(mv.src)];
+        if (u64ToCol(mv.getSrc()) != u64ToCol(testMove.getSrc())) {
+          colDisambig = FILE_NAMES[u64ToCol(mv.getSrc())];
         }
         // if row is different, add row
-        if (u64ToRow(mv.src) != u64ToRow(testMove.src)) {
-          rowDisambig = RANK_NAMES[u64ToRow(mv.src)];
+        if (u64ToRow(mv.getSrc()) != u64ToRow(testMove.getSrc())) {
+          rowDisambig = RANK_NAMES[u64ToRow(mv.getSrc())];
         }
         overlapCount += 1;
       }
@@ -680,15 +454,16 @@ std::string Board::moveToAlgebraic(const Move &mv) {
       }
     }
   }
-  if (mv.dest & occupancy() || mv.moveType == MoveType::EnPassant) {
-    if (mv.mover == W_Pawn || mv.mover == B_Pawn) {
-      result += FILE_NAMES[u64ToCol(mv.src)];
+  if (mv.getDest() & occupancy() ||
+      mv.getTypeCode() == MoveTypeCode::EnPassant) {
+    if (mover == W_Pawn || mover == B_Pawn) {
+      result += FILE_NAMES[u64ToCol(mv.getSrc())];
     }
     result += "x";
   }
-  result += squareName(mv.dest);
-  if (mv.moveType == MoveType::Promotion) {
-    result += "=" + pieceToStringAlph(mv.promotion);
+  result += squareName(mv.getDest());
+  if (mv.isPromotion()) {
+    result += "=" + pieceToStringAlph(mv.getPromotingPiece());
   }
   return result;
 }
@@ -740,6 +515,13 @@ void Board::_removePiece(PieceType p, u64 location) {
   if (location & bitboard[p]) {
     u64 hash = ZOBRIST_HASHES[64 * p + u64ToIndex(location)];
     _zobristHash ^= hash;
+  } else {
+    std::cout << pieceToString(p) << "\n";
+    dump64(location);
+    dump64(bitboard[p]);
+    dump(true);
+    debugLog("bad piecerem");
+    throw;
   }
   bitboard[p] &= ~location;
 }
@@ -761,47 +543,64 @@ void Board::_addPiece(PieceType p, u64 location) {
   bitboard[p] |= location;
 }
 
-void Board::makeMove(Move &mv) {
-  _statusDirty = true;
-  if (mv.moveType != MoveType::Null) {
-    // mask out mover
-    _removePiece(mv.mover, mv.src);
+void Board::makeMove(Move mv) {
 
-    if (mv.moveType == MoveType::EnPassant) {
-      if (mv.mover == W_Pawn) {
-        u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
+  _statusDirty = true;
+
+  // copy old data and move onto stack
+  stack.push(boardState, mv);
+
+  uint8_t moveType = mv.getTypeCode();
+
+  boardState[LAST_MOVED_INDEX] = Empty;
+  boardState[LAST_CAPTURED_INDEX] = Empty;
+
+  if (moveType != MoveTypeCode::Null) {
+    Color c = turn();
+    u64 src = mv.getSrc();
+    u64 dest = mv.getDest();
+    PieceType mover = pieceAt(src);
+    PieceType destFormer = pieceAt(dest);
+
+    boardState[LAST_MOVED_INDEX] = mover;
+
+    // mask out mover
+    _removePiece(mover, src);
+
+    if (moveType == MoveTypeCode::EnPassant) {
+      if (mover == W_Pawn) {
+        u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][Black];
         _removePiece(B_Pawn, capturedPawn);
-      }
-      if (mv.mover == B_Pawn) {
-        u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
+        boardState[LAST_CAPTURED_INDEX] = B_Pawn;
+      } else {
+        u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][White];
         _removePiece(W_Pawn, capturedPawn);
+        boardState[LAST_CAPTURED_INDEX] = W_Pawn;
       }
+    } else if (destFormer != Empty) {
+      _removePiece(destFormer, dest);
+      boardState[LAST_CAPTURED_INDEX] = destFormer;
     } else {
-      // check if new location has a piece...
-      // here we update the move object w/ capture data, so we're careful to
-      // return the modified move object.
-      if (mv.destFormer != Empty) {
-        _removePiece(mv.destFormer, mv.dest);
-      }
+      boardState[LAST_CAPTURED_INDEX] = Empty; // wipe it
     }
 
     // move to new location
-    if (mv.moveType == MoveType::Promotion) {
-      _addPiece(mv.promotion, mv.dest);
+    if (mv.isPromotion()) {
+      _addPiece(mv.getPromotingPiece(c), dest);
     } else {
-      _addPiece(mv.mover, mv.dest);
+      _addPiece(mover, dest);
     }
 
-    if (mv.moveType == MoveType::CastleLong) {
-      if (mv.mover == W_King) {
+    if (moveType == MoveTypeCode::CastleLong) {
+      if (mover == W_King) {
         _removePiece(W_Rook, rookStartingPositions[White][0]);
         _addPiece(W_Rook, CASTLE_LONG_ROOK_DEST[White]);
       } else {
         _removePiece(B_Rook, rookStartingPositions[Black][0]);
         _addPiece(B_Rook, CASTLE_LONG_ROOK_DEST[Black]);
       }
-    } else if (mv.moveType == MoveType::CastleShort) {
-      if (mv.mover == W_King) {
+    } else if (moveType == MoveTypeCode::CastleShort) {
+      if (mover == W_King) {
         _removePiece(W_Rook, rookStartingPositions[White][1]);
         _addPiece(W_Rook, CASTLE_SHORT_ROOK_DEST[White]);
       } else {
@@ -809,63 +608,59 @@ void Board::makeMove(Move &mv) {
         _addPiece(B_Rook, CASTLE_SHORT_ROOK_DEST[Black]);
       }
     }
-  }
 
-  // copy old data and move onto stack
-  stack.push(boardState, mv);
-
-  /*Update state!!!*/
-
-  _switchTurn();
-
-  // revoke castling rights
-  if (mv.mover == W_King) {
-    _setCastlingPrivileges(White, 0, 0);
-  } else if (mv.mover == B_King) {
-    _setCastlingPrivileges(Black, 0, 0);
-  } 
-  if ((mv.mover == B_Rook || mv.mover == W_Rook) ||
-             (mv.destFormer == B_Rook || mv.destFormer == W_Rook)) {
-    u64 targets = mv.src | mv.dest;
-    if (targets & rookStartingPositions[White][0]) {
-      _setCastlingPrivileges(White, 0, boardState[W_SHORT_INDEX]);
+    // revoke castling rights
+    if (mover == W_King) {
+      _setCastlingPrivileges(White, 0, 0);
+    } else if (mover == B_King) {
+      _setCastlingPrivileges(Black, 0, 0);
     }
-    if (targets & rookStartingPositions[White][1]) {
-      _setCastlingPrivileges(White, boardState[W_LONG_INDEX], 0);
+    if ((mover == B_Rook || mover == W_Rook) ||
+        (destFormer == B_Rook || destFormer == W_Rook)) {
+      u64 targets = src | dest;
+      if (targets & rookStartingPositions[White][0]) {
+        _setCastlingPrivileges(White, 0, boardState[W_SHORT_INDEX]);
+      }
+      if (targets & rookStartingPositions[White][1]) {
+        _setCastlingPrivileges(White, boardState[W_LONG_INDEX], 0);
+      }
+      if (targets & rookStartingPositions[Black][0]) {
+        _setCastlingPrivileges(Black, 0, boardState[B_SHORT_INDEX]);
+      }
+      if (targets & rookStartingPositions[Black][1]) {
+        _setCastlingPrivileges(Black, boardState[B_LONG_INDEX], 0);
+      }
     }
-    if (targets & rookStartingPositions[Black][0]) {
-      _setCastlingPrivileges(Black, 0, boardState[B_SHORT_INDEX]);
-    }
-    if (targets & rookStartingPositions[Black][1]) {
-      _setCastlingPrivileges(Black, boardState[B_LONG_INDEX], 0);
-    }
-  }
 
-  // handle en passant
-  if (mv.moveType == MoveType::PawnDouble) {
-    // see if adjacent squares have pawns
-    if (mv.mover == W_Pawn) {
-      int destIndex = u64ToIndex(mv.dest);
-      if (bitboard[B_Pawn] & ONE_ADJACENT_CACHE[destIndex]) {
-        _setEpSquare(u64ToIndex(PAWN_MOVE_CACHE[destIndex][Black]));
+    // handle en passant
+    if (moveType == MoveTypeCode::DoublePawn) {
+      // see if adjacent squares have pawns
+      if (mover == W_Pawn) {
+        int destIndex = u64ToIndex(dest);
+        if (bitboard[B_Pawn] & ONE_ADJACENT_CACHE[destIndex]) {
+          _setEpSquare(u64ToIndex(PAWN_MOVE_CACHE[destIndex][Black]));
+        } else {
+          _setEpSquare(-1);
+        }
       } else {
-        _setEpSquare(-1);
+        int destIndex = u64ToIndex(dest);
+        if (bitboard[W_Pawn] & ONE_ADJACENT_CACHE[destIndex]) {
+          _setEpSquare(u64ToIndex(PAWN_MOVE_CACHE[destIndex][White]));
+        } else {
+          _setEpSquare(-1);
+        }
       }
     } else {
-      int destIndex = u64ToIndex(mv.dest);
-      if (bitboard[W_Pawn] & ONE_ADJACENT_CACHE[destIndex]) {
-        _setEpSquare(u64ToIndex(PAWN_MOVE_CACHE[destIndex][White]));
-      } else {
-        _setEpSquare(-1);
-      }
+      // all other moves: en passant square is nulled
+      _setEpSquare(-1);
     }
   } else {
-    // all other moves: en passant square is nulled
     _setEpSquare(-1);
   }
 
+  _switchTurn();
+
   _generatePseudoLegal();
-  _hasGeneratedMoves = false;
 }
 
 void Board::unmakeMove() {
@@ -874,48 +669,56 @@ void Board::unmakeMove() {
 
   BoardStateNode &node = stack.peek();
   Move &mv = node.mv;
+  uint8_t moveType = mv.getTypeCode();
 
-  if (mv.moveType == MoveType::CastleLong ||
-      mv.moveType == MoveType::CastleShort) {
-    if (mv.mover == W_King) {
-      if (mv.moveType == MoveType::CastleLong) {
-        _removePiece(W_Rook, CASTLE_LONG_ROOK_DEST[White]);
-        _addPiece(W_Rook, rookStartingPositions[White][0]);
+  if (moveType != MoveTypeCode::Null) {
+    u64 src = mv.getSrc();
+    u64 dest = mv.getDest();
+    uint8_t moveType = mv.getTypeCode();
+    PieceType mover = boardState[LAST_MOVED_INDEX];
+    PieceType destFormer = boardState[LAST_CAPTURED_INDEX];
+
+    if (moveType == MoveTypeCode::CastleLong ||
+        moveType == MoveTypeCode::CastleShort) {
+      if (mover == W_King) {
+        if (moveType == MoveTypeCode::CastleLong) {
+          _removePiece(W_Rook, CASTLE_LONG_ROOK_DEST[White]);
+          _addPiece(W_Rook, rookStartingPositions[White][0]);
+        } else {
+          _removePiece(W_Rook, CASTLE_SHORT_ROOK_DEST[White]);
+          _addPiece(W_Rook, rookStartingPositions[White][1]);
+        }
       } else {
-        _removePiece(W_Rook, CASTLE_SHORT_ROOK_DEST[White]);
-        _addPiece(W_Rook, rookStartingPositions[White][1]);
-      }
-    } else {
-      if (mv.moveType == MoveType::CastleLong) {
-        _removePiece(B_Rook, CASTLE_LONG_ROOK_DEST[Black]);
-        _addPiece(B_Rook, rookStartingPositions[Black][0]);
-      } else {
-        _removePiece(B_Rook, CASTLE_SHORT_ROOK_DEST[Black]);
-        _addPiece(B_Rook, rookStartingPositions[Black][1]);
+        if (moveType == MoveTypeCode::CastleLong) {
+          _removePiece(B_Rook, CASTLE_LONG_ROOK_DEST[Black]);
+          _addPiece(B_Rook, rookStartingPositions[Black][0]);
+        } else {
+          _removePiece(B_Rook, CASTLE_SHORT_ROOK_DEST[Black]);
+          _addPiece(B_Rook, rookStartingPositions[Black][1]);
+        }
       }
     }
-  }
 
-  if (mv.moveType != MoveType::Null) {
     // move piece to old src
-    _addPiece(mv.mover, mv.src);
+    _addPiece(mover, src);
 
-    // mask out dest
-    _removePiece(mv.mover, mv.dest);
-    if (mv.moveType == MoveType::Promotion) {
-      _removePiece(mv.promotion, mv.dest);
+    if (mv.isPromotion()) {
+      _removePiece(mv.getPromotingPiece(flipColor(turn())), dest);
+    } else {
+      _removePiece(mover, dest);
     }
 
     // restore dest
-    if (mv.moveType == MoveType::EnPassant) { // instead of restoring at capture
-                                              // location, restore one above
-      if (mv.mover == W_Pawn) {
-        _addPiece(B_Pawn, PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black]);
+    if (moveType ==
+        MoveTypeCode::EnPassant) { // instead of restoring at capture
+                                   // location, restore one above
+      if (mover == W_Pawn) {
+        _addPiece(B_Pawn, PAWN_MOVE_CACHE[u64ToIndex(dest)][Black]);
       } else {
-        _addPiece(W_Pawn, PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White]);
+        _addPiece(W_Pawn, PAWN_MOVE_CACHE[u64ToIndex(dest)][White]);
       }
-    } else if (mv.destFormer != Empty) {
-      _addPiece(mv.destFormer, mv.dest); // restore to capture location
+    } else if (destFormer != Empty) {
+      _addPiece(destFormer, dest); // restore to capture location
     }
   }
 
@@ -925,10 +728,11 @@ void Board::unmakeMove() {
                          node.data[W_SHORT_INDEX]);
   _setCastlingPrivileges(Black, node.data[B_LONG_INDEX],
                          node.data[B_SHORT_INDEX]);
+  boardState[LAST_MOVED_INDEX] = node.data[LAST_MOVED_INDEX];
+  boardState[LAST_CAPTURED_INDEX] = node.data[LAST_CAPTURED_INDEX];
 
   stack.pop();
 
-  _hasGeneratedMoves = false;
   _pseudoStack.pop_back(); // pop current
 
   PseudoLegalData pdata = _pseudoStack.back(); // obtain old
@@ -1061,27 +865,191 @@ void Board::dump(bool debug) {
     } else {
       std::cout << "none";
     }
+    std::cout << "\nLast Mover:";
+    if (boardState[LAST_MOVED_INDEX] != Empty) {
+      std::cout << pieceToString(boardState[LAST_MOVED_INDEX]);
+    }
+    std::cout << "\nLast Captured:";
+    if (boardState[LAST_CAPTURED_INDEX] != Empty) {
+      std::cout << pieceToString(boardState[LAST_CAPTURED_INDEX]);
+    }
     std::cout << "\nLegal: ";
     for (Move &mv : moves) {
       std::cout << moveToExtAlgebraic(mv) << " ";
-      if (mv.destFormer != Empty) {
-        // std::cout << " see: " << see(mv.src, mv.dest, mv.mover,
-        // mv.destFormer);
+      std::cout << "(" << (int)mv.getTypeCode() << ")"
+                << " ";
+      if (mv.getDest() & occupancy()) {
+        // std::cout << " see: " << see(mv);
       }
-      // std::cout << "\n";
     }
     std::cout << "\nOut-Of-Check: ";
     for (Move &mv : produceUncheckMoves()) {
       std::cout << moveToAlgebraic(mv) << " ";
     }
     std::cout << "\nMoves made: ";
-    for (int i = 0; i < (int) stack.getIndex(); i++) {
+    for (int i = 0; i < (int)stack.getIndex(); i++) {
       Move mv = stack.peekAt(i);
-      std::cout << moveToAlgebraicNoDisambig(mv) << " ";
+      std::cout << moveToUCIAlgebraic(mv);
+      std::cout << "(" << (int)mv.getTypeCode() << ")"
+                << " ";
+    }
+
+    std::cout << "\nState stack: ";
+    for (int i = 0; i < (int)stack.getIndex(); i++) {
+      auto node = stack.peekNodeAt(i);
+      std::cout << "(" << (int)node.data[LAST_MOVED_INDEX] << ",";
+      std::cout << (int)node.data[LAST_CAPTURED_INDEX] << ") ";
+      std::cout << (int)node.data[EN_PASSANT_INDEX] << ") ";
     }
     // std::cout << "\n" << fen();
     std::cout << "\n";
     std::cout << "\n";
+    /*
+    _movegen.reset(occupancy(White), attackMap);
+    while (_movegen.hasNext()) {
+      int src;
+      int dest;
+      _movegen.next(attackMap, src, dest);
+      std::cout << src << "->" << dest << "\n";
+    }
+    */
+  }
+}
+
+void Board::generateSpecialMoves(std::vector<Move>& sbuffer) {
+  // fill specialbuffer
+  // pawn moves: en passant and double moves
+  // castles
+  Color color = turn();
+  u64 enemies = occupancy(flipColor(color));
+  u64 friendlies = occupancy(color);
+  u64 occ = enemies | friendlies;
+
+  PieceType pawn = color == White ? W_Pawn : B_Pawn;
+  int sRow = color == White ? 1 : 6;
+  int pRow = color == White ? 6 : 1;
+
+  std::array<int, 64> arr;
+  int count;
+  bitscanAllInt(arr, bitboard[pawn], count);
+  for (int i = 0; i < count; i++) {
+    int srci = arr[i];
+    int row = intToRow(srci);
+    if (boardState[EN_PASSANT_INDEX] >= 0 &&
+        u64FromIndex(boardState[EN_PASSANT_INDEX]) & attackMap[srci]) {
+      sbuffer.push_back(
+          Move(srci, boardState[EN_PASSANT_INDEX],
+               MoveTypeCode::EnPassant));
+    }
+    u64 singleMove = PAWN_MOVE_CACHE[srci][color] & ~occ;
+    if (singleMove) {
+      if (row == sRow) {
+        u64 doubleMove = PAWN_DOUBLE_CACHE[srci][color] & ~occ;
+        if (doubleMove) {
+          sbuffer.push_back(
+              Move(srci, u64ToIndex(doubleMove), MoveTypeCode::DoublePawn));
+        }
+      }
+      if (row == pRow) {
+        int desti = u64ToIndex(singleMove);
+        sbuffer.push_back(
+            Move(srci, desti, MoveTypeCode::BPromotion));
+        sbuffer.push_back(
+            Move(srci, desti, MoveTypeCode::RPromotion));
+        sbuffer.push_back(
+            Move(srci, desti, MoveTypeCode::KPromotion));
+        sbuffer.push_back(
+            Move(srci, desti, MoveTypeCode::QPromotion));
+      } else {
+        sbuffer.push_back(
+            Move(srci, u64ToIndex(singleMove), MoveTypeCode::Default));
+      }
+    }
+  }
+
+  if (!isCheck()) {
+    PieceType myKing = color == White ? W_King : B_King;
+    int myKingIndex = u64ToIndex(bitboard[myKing]);
+    size_t myLongIndex = B_LONG_INDEX;
+    size_t myShortIndex = B_SHORT_INDEX;
+    if (myKing == W_King) {
+      myLongIndex = W_LONG_INDEX;
+      myShortIndex = W_SHORT_INDEX;
+    }
+    Color opponent = flipColor(color);
+    if (boardState[myLongIndex]) {               // is allowed
+      if (!(CASTLE_LONG_SQUARES[color] & occ)) { // in-between is empty
+        if (!_isUnderAttack(CASTLE_LONG_KING_SLIDE[color], opponent)) {
+          sbuffer.push_back(
+              Move(myKingIndex, u64ToIndex(CASTLE_LONG_KING_DEST[color]),
+                   MoveTypeCode::CastleLong));
+        }
+      }
+    }
+    if (boardState[myShortIndex]) {               // is allowed
+      if (!(CASTLE_SHORT_SQUARES[color] & occ)) { // in-between is empty
+        if (!_isUnderAttack(CASTLE_SHORT_KING_SLIDE[color], opponent)) {
+          sbuffer.push_back(
+              Move(myKingIndex, u64ToIndex(CASTLE_SHORT_KING_DEST[color]),
+                   MoveTypeCode::CastleShort));
+        }
+      }
+    }
+  }
+}
+
+Move Board::nextMove(LazyMovegen& movegen, std::vector<Move>& sbuffer, bool &hasGenSpecial) {
+  if (movegen.hasNext()) {
+    int s, d;
+    movegen.next(attackMap, s, d);
+    //std::cout << s << "->" << d <<"\n";
+    u64 friendlies = occupancy(turn());
+    if (u64FromIndex(d) & friendlies) {
+      return nextMove(movegen, sbuffer, hasGenSpecial);
+    } else {
+      Move mv;
+      Color color = turn();
+      PieceType pawn = color == White ? W_Pawn : B_Pawn;
+      int pRow = color == White ? 6 : 1;
+      if (u64FromIndex(s) & bitboard[pawn]) {
+        u64 enemies = occupancy(flipColor(color));
+        // deal with pawn capture rules
+        if (u64FromIndex(d) & enemies) {
+          if (intToRow(s) == pRow) {
+            sbuffer.push_back(Move(s, d, MoveTypeCode::BPromotion));
+            sbuffer.push_back(Move(s, d, MoveTypeCode::RPromotion));
+            sbuffer.push_back(Move(s, d, MoveTypeCode::KPromotion));
+            sbuffer.push_back(Move(s, d, MoveTypeCode::QPromotion));
+            return nextMove(movegen, sbuffer, hasGenSpecial);
+          } else {
+            mv = Move(s, d, MoveTypeCode::Default);
+          }
+        } else {
+          return nextMove(movegen, sbuffer, hasGenSpecial);
+        }
+      } else {
+        mv = Move(s, d, MoveTypeCode::Default);
+      }
+      if (verifyLegal(mv)) {
+        return mv;
+      } else {
+        return nextMove(movegen, sbuffer, hasGenSpecial);
+      }
+    }
+  } else {
+    if (!hasGenSpecial) {
+      generateSpecialMoves(sbuffer);
+      hasGenSpecial = true;
+    }
+    while (sbuffer.size() > 0) {
+      Move mv = sbuffer.back();
+      sbuffer.pop_back();
+      if (verifyLegal(mv)) {
+        return mv;
+      }
+    }
+    // no more
+    return Move(); // null ends the iterator;
   }
 }
 
@@ -1264,7 +1232,12 @@ Board::_leastValuablePiece(u64 sqset, Color color,
   return Empty;
 }
 
-int Board::see(u64 src, u64 dest, PieceType attacker, PieceType targetPiece) {
+int Board::see(Move mv) {
+  u64 src = mv.getSrc();
+  u64 dest = mv.getSrc();
+  PieceType attacker = pieceAt(src);
+  PieceType targetPiece = pieceAt(dest);
+
   Color color = colorOf(attacker);
   u64 attackSet = _isUnderAttack(dest);
   u64 usedAttackers = src;
@@ -1361,152 +1334,65 @@ int Board::see(u64 src, u64 dest, PieceType attacker, PieceType targetPiece) {
   // static exch eval for move ordering and quiescience pruning
 }
 
-bool Board::verifyLegal(Move &mv) {
-  bool legal = true;
-  Color myColor = turn();
-  PieceType myKing = myColor == White ? W_King : B_King;
-  // check that king is not moving into check
-
-  if (mv.mover == myKing) {
-    u64 enemies = occupancy(flipColor(myColor));
-    if (defendMap[u64ToIndex(mv.dest)] & enemies) {
-      return false;
-    }
+bool Board::verifyLegal(Move mv) {
+  if (mv.getTypeCode() == MoveTypeCode::CastleLong ||
+      mv.getTypeCode() == MoveTypeCode::CastleShort) {
+    return true; // castling is verified on add
   }
-
-  // 1. Edit bitboards
-  // mask out mover
-
-  bitboard[mv.mover] &= ~mv.src;
-
-  if (mv.moveType == MoveType::EnPassant) {
-    if (mv.mover == W_Pawn) {
-      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
-      bitboard[B_Pawn] &= ~capturedPawn;
-    }
-    if (mv.mover == B_Pawn) {
-      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
-      bitboard[W_Pawn] &= ~capturedPawn;
-    }
-  } else {
-    if (mv.destFormer != Empty) {
-      bitboard[mv.destFormer] &= ~mv.dest;
-    }
-  }
-
-  // move to new location
-  if (mv.moveType == MoveType::Promotion) {
-    bitboard[mv.promotion] |= mv.dest;
-  } else {
-    bitboard[mv.mover] |= mv.dest;
-  }
-
-  // 2. Check if king is in line of fire
-
-  // ray out, knight out, king out, pawn out
-  PieceType offset = 0;
-  if (myColor == White) {
-    offset = 6;
-  }
-  PieceType eknight = W_Knight + offset;
-  PieceType eking = W_King + offset;
-  PieceType erook = W_Rook + offset;
-  PieceType ebishop = W_Bishop + offset;
-  PieceType equeen = W_Queen + offset;
-  PieceType epawn = W_Pawn + offset;
-
-  u64 kingBB = bitboard[myKing];
-  int kingIndex = u64ToIndex(kingBB);
-  u64 occ = occupancy();
-
-  if (PAWN_CAPTURE_CACHE[kingIndex][myColor] & bitboard[epawn] ||
-      (KNIGHT_MOVE_CACHE[kingIndex] & bitboard[eknight] ||
-       KING_MOVE_CACHE[kingIndex] & bitboard[eking])) {
-    legal = false;
-  }
-
-  if (legal) {
-    for (int d = 0; d < 4; d++) {
-      u64 ray;
-      ray = _bishopRay(kingBB, d, occ);
-      if ((bitboard[ebishop] | bitboard[equeen]) & ray) {
-        legal = false;
-        break;
-      }
-      ray = _rookRay(kingBB, d, occ);
-      if ((bitboard[erook] | bitboard[equeen]) & ray) {
-        legal = false;
-        break;
-      }
-    }
-  }
-
-  // 3. Revert bitboards
-
-  // move piece to old src
-  bitboard[mv.mover] |= mv.src;
-
-  // mask out dest
-  bitboard[mv.mover] &= ~mv.dest;
-  if (mv.moveType == MoveType::Promotion) {
-    bitboard[mv.promotion] &= ~mv.dest;
-  }
-
-  // restore dest
-  if (mv.moveType == MoveType::EnPassant) { // instead of restoring at capture
-                                            // location, restore one above
-    if (mv.mover == W_Pawn) {
-      bitboard[B_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
-    } else {
-      bitboard[W_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
-    }
-  } else if (mv.destFormer != Empty) {
-    bitboard[mv.destFormer] |= mv.dest;
-  }
-  return legal;
+  Color c = turn();
+  return !isCheckingMove(mv, flipColor(c), c);
 }
 
-bool Board::isCheckingMove(Move &mv) {
+bool Board::isCheckingMove(Move mv) {
+  return isCheckingMove(mv, turn(), flipColor(turn()));
+}
+
+bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
+  // is King Color's king under attack after move is made by myColor
   bool result = false;
-  Color myColor = turn();
-  PieceType enemyKing = myColor == White ? B_King : W_King;
+  Color myColor = aColor;
+  PieceType king = kingColor == White ? W_King : B_King;
 
-  // 1. Edit bitboards
-  // mask out mover
-  bitboard[mv.mover] &= ~mv.src;
+  u64 src = mv.getSrc();
+  u64 dest = mv.getDest();
+  u64 destFormer = pieceAt(dest);
+  PieceType mover = pieceAt(src);
+  uint8_t moveType = mv.getTypeCode();
 
-  if (mv.moveType == MoveType::EnPassant) {
-    if (mv.mover == W_Pawn) {
-      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
+  bitboard[mover] &= ~src;
+
+  if (moveType == MoveTypeCode::EnPassant) {
+    if (mover == W_Pawn) {
+      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][Black];
       bitboard[B_Pawn] &= ~capturedPawn;
     }
-    if (mv.mover == B_Pawn) {
-      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
+    if (mover == B_Pawn) {
+      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][White];
       bitboard[W_Pawn] &= ~capturedPawn;
     }
   } else {
-    if (mv.destFormer != Empty) {
-      bitboard[mv.destFormer] &= ~mv.dest;
+    if (destFormer != Empty) {
+      bitboard[destFormer] &= ~dest;
     }
   }
 
   // move to new location
-  if (mv.moveType == MoveType::Promotion) {
-    bitboard[mv.promotion] |= mv.dest;
+  if (mv.isPromotion()) {
+    bitboard[mv.getPromotingPiece(myColor)] |= dest;
   } else {
-    bitboard[mv.mover] |= mv.dest;
+    bitboard[mover] |= dest;
   }
 
-  if (mv.moveType == MoveType::CastleLong) {
-    if (mv.mover == W_King) {
+  if (moveType == MoveTypeCode::CastleLong) {
+    if (mover == W_King) {
       bitboard[W_Rook] &= ~rookStartingPositions[White][0];
       bitboard[W_Rook] |= CASTLE_LONG_ROOK_DEST[White];
     } else {
       bitboard[B_Rook] &= ~rookStartingPositions[Black][0];
       bitboard[B_Rook] |= CASTLE_LONG_ROOK_DEST[Black];
     }
-  } else if (mv.moveType == MoveType::CastleShort) {
-    if (mv.mover == W_King) {
+  } else if (moveType == MoveTypeCode::CastleShort) {
+    if (mover == W_King) {
       bitboard[W_Rook] &= ~rookStartingPositions[White][1];
       bitboard[W_Rook] |= CASTLE_SHORT_ROOK_DEST[White];
     } else {
@@ -1529,7 +1415,7 @@ bool Board::isCheckingMove(Move &mv) {
   PieceType equeen = W_Queen + offset;
   PieceType epawn = W_Pawn + offset;
 
-  u64 kingBB = bitboard[enemyKing];
+  u64 kingBB = bitboard[king];
   int kingIndex = u64ToIndex(kingBB);
   u64 occ = occupancy();
 
@@ -1555,10 +1441,10 @@ bool Board::isCheckingMove(Move &mv) {
 
   // 3. Revert bitboards
 
-  if (mv.moveType == MoveType::CastleLong ||
-      mv.moveType == MoveType::CastleShort) {
-    if (mv.mover == W_King) {
-      if (mv.moveType == MoveType::CastleLong) {
+  if (moveType == MoveTypeCode::CastleLong ||
+      moveType == MoveTypeCode::CastleShort) {
+    if (mover == W_King) {
+      if (moveType == MoveTypeCode::CastleLong) {
         bitboard[W_Rook] &= ~CASTLE_LONG_ROOK_DEST[White];
         bitboard[W_Rook] |= rookStartingPositions[White][0];
       } else {
@@ -1566,7 +1452,7 @@ bool Board::isCheckingMove(Move &mv) {
         bitboard[W_Rook] |= rookStartingPositions[White][1];
       }
     } else {
-      if (mv.moveType == MoveType::CastleLong) {
+      if (moveType == MoveTypeCode::CastleLong) {
         bitboard[B_Rook] &= ~CASTLE_LONG_ROOK_DEST[Black];
         bitboard[B_Rook] |= rookStartingPositions[Black][0];
       } else {
@@ -1577,181 +1463,39 @@ bool Board::isCheckingMove(Move &mv) {
   }
 
   // move piece to old src
-  bitboard[mv.mover] |= mv.src;
+  bitboard[mover] |= src;
 
   // mask out dest
-  bitboard[mv.mover] &= ~mv.dest;
-  if (mv.moveType == MoveType::Promotion) {
-    bitboard[mv.promotion] &= ~mv.dest;
+  bitboard[mover] &= ~dest;
+  if (mv.isPromotion()) {
+    bitboard[mv.getPromotingPiece(myColor)] &= ~dest;
   }
 
   // restore dest
-  if (mv.moveType == MoveType::EnPassant) { // instead of restoring at capture
-                                            // location, restore one above
-    if (mv.mover == W_Pawn) {
-      bitboard[B_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][Black];
+  if (moveType == MoveTypeCode::EnPassant) { // instead of restoring at capture
+                                             // location, restore one above
+    if (mover == W_Pawn) {
+      bitboard[B_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(dest)][Black];
     } else {
-      bitboard[W_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(mv.dest)][White];
+      bitboard[W_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(dest)][White];
     }
-  } else if (mv.destFormer != Empty) {
-    bitboard[mv.destFormer] |= mv.dest;
+  } else if (destFormer != Empty) {
+    bitboard[destFormer] |= dest;
   }
   return result;
 }
 
-void Board::generateLegalMoves() {
-  _legalMovesBuffer.clear();
-  _quietMoveBuffer.clear();
-  _tacticalMoveBuffer.clear();
-  Color c = turn();
-  u64 enemies = occupancy(flipColor(c));
-  u64 friendlies = occupancy(c);
-  u64 occ = enemies | friendlies;
-  int c0 = 0;
-  std::array<u64, 64> a0;
-  int count = 0;
-  std::array<u64, 64> arr;
-  PieceType s = pieceIndexFromColor(c);
-  for (PieceType mover = s; mover < s + 6; mover++) {
-    bitscanAll(a0, bitboard[mover], c0);
-    for (int i = 0; i < c0; i++) {
-      u64 src = a0[i];
-      int row = u64ToRow(src);
-      int srci = u64ToIndex(src);
-      u64 destMap = attackMap[srci] & ~friendlies;
-      if (mover == W_Pawn) {
-        if (boardState[EN_PASSANT_INDEX] >= 0 &&
-            u64FromIndex(boardState[EN_PASSANT_INDEX]) & destMap) {
-          Move mv =
-              Move::SpecialMove(MoveType::EnPassant, mover, src,
-                                u64FromIndex(boardState[EN_PASSANT_INDEX]));
-          mv.destFormer = B_Pawn;
-          _tacticalMoveBuffer.push_back(mv);
-        }
-        destMap &= enemies;
-        u64 single = PAWN_MOVE_CACHE[srci][White] & ~occ;
-        destMap |= single;
-        if (single && row == 1) {
-          destMap |= PAWN_DOUBLE_CACHE[srci][White] & ~occ;
-        }
-      } else if (mover == B_Pawn) {
-        if (boardState[EN_PASSANT_INDEX] >= 0 &&
-            u64FromIndex(boardState[EN_PASSANT_INDEX]) & destMap) {
-          Move mv =
-              Move::SpecialMove(MoveType::EnPassant, mover, src,
-                                u64FromIndex(boardState[EN_PASSANT_INDEX]));
-          mv.destFormer = W_Pawn;
-          _tacticalMoveBuffer.push_back(mv);
-        }
-        destMap &= enemies;
-        u64 single = PAWN_MOVE_CACHE[srci][Black] & ~occ;
-        destMap |= single;
-        if (single && row == 6) {
-          destMap |= PAWN_DOUBLE_CACHE[srci][Black] & ~occ;
-        }
-      }
-      bitscanAll(arr, destMap, count);
-      for (int k = 0; k < count; k++) {
-        u64 dest = arr[k];
-        if (mover == W_Pawn || mover == B_Pawn) {
-          int row0 = row;
-          int row1 = u64ToRow(dest);
-          if (abs(row0 - row1) > 1) {
-            Move mv = Move::DoublePawnMove(mover, src, dest);
-            _quietMoveBuffer.push_back(mv);
-          } else if (row1 == 0) {
-            for (PieceType prom = B_Knight; prom < B_Knight + 4; prom++) {
-              Move mv = Move::PromotionMove(mover, src, dest, prom);
-              if (occ & dest) {
-                mv.destFormer = pieceAt(dest);
-              }
-              _tacticalMoveBuffer.push_back(mv);
-            }
-          } else if (row1 == 7) {
-            for (PieceType prom = W_Knight; prom < W_Knight + 4; prom++) {
-              Move mv = Move::PromotionMove(mover, src, dest, prom);
-              if (occ & dest) {
-                mv.destFormer = pieceAt(dest);
-              }
-              _tacticalMoveBuffer.push_back(mv);
-            }
-          } else {
-            Move mv = Move::DefaultMove(mover, src, dest);
-            if (occ & dest) {
-              mv.destFormer = pieceAt(dest);
-              _tacticalMoveBuffer.push_back(mv);
-            } else {
-              _quietMoveBuffer.push_back(mv);
-            }
-          }
-        } else {
-          Move mv = Move::DefaultMove(mover, src, dest);
-          if (occ & dest) {
-            mv.destFormer = pieceAt(dest);
-            _tacticalMoveBuffer.push_back(mv);
-          } else {
-            _quietMoveBuffer.push_back(mv);
-          }
-        }
-      }
-    }
-  }
-  _legalMovesBuffer.reserve(_quietMoveBuffer.size() +
-                            _tacticalMoveBuffer.size() +
-                            2); // preallocate memory
-  for (Move &mv : _quietMoveBuffer) {
-    if (verifyLegal(mv)) {
-      _legalMovesBuffer.push_back(mv);
-    }
-  }
-  for (Move &mv : _tacticalMoveBuffer) {
-    if (verifyLegal(mv)) {
-      _legalMovesBuffer.push_back(mv);
-    }
-  }
-  // add castling
-  if (!isCheck()) {
-    PieceType myKing = c == White ? W_King : B_King;
-    size_t myLongIndex = B_LONG_INDEX;
-    size_t myShortIndex = B_SHORT_INDEX;
-    if (myKing == W_King) {
-      myLongIndex = W_LONG_INDEX;
-      myShortIndex = W_SHORT_INDEX;
-    }
-    Color opponent = flipColor(c);
-    if (boardState[myLongIndex]) {           // is allowed
-      if (!(CASTLE_LONG_SQUARES[c] & occ)) { // in-between is empty
-        if (!_isUnderAttack(CASTLE_LONG_KING_SLIDE[c], opponent)) {
-          Move mv =
-              Move::SpecialMove(MoveType::CastleLong, myKing, bitboard[myKing],
-                                CASTLE_LONG_KING_DEST[c]);
-          _tacticalMoveBuffer.push_back(mv);
-          _legalMovesBuffer.push_back(mv);
-        }
-      }
-    }
-    if (boardState[myShortIndex]) {           // is allowed
-      if (!(CASTLE_SHORT_SQUARES[c] & occ)) { // in-between is empty
-        if (!_isUnderAttack(CASTLE_SHORT_KING_SLIDE[c], opponent)) {
-          Move mv =
-              Move::SpecialMove(MoveType::CastleShort, myKing, bitboard[myKing],
-                                CASTLE_SHORT_KING_DEST[c]);
-          _tacticalMoveBuffer.push_back(mv);
-          _legalMovesBuffer.push_back(mv);
-        }
-      }
-    }
-  }
-  _hasGeneratedMoves = true;
-}
-
 std::vector<Move> Board::legalMoves() {
-  if (_hasGeneratedMoves) {
-    return _legalMovesBuffer;
-  } else {
-    generateLegalMoves();
-    return _legalMovesBuffer;
+  std::vector<Move> v;
+  LazyMovegen movegen(occupancy(turn()), attackMap);
+  std::vector<Move> sbuffer;
+  bool hasGenSpecial;
+  Move mv = nextMove(movegen, sbuffer, hasGenSpecial);
+  while (mv.notNull()) {
+    v.push_back(mv);
+    mv = nextMove(movegen, sbuffer, hasGenSpecial);
   }
+  return v;
 }
 
 Color Board::turn() { return boardState[TURN_INDEX]; }
@@ -1838,6 +1582,8 @@ void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
   boardState[W_SHORT_INDEX] = 1;
   boardState[B_LONG_INDEX] = 1;
   boardState[B_SHORT_INDEX] = 1;
+  boardState[LAST_CAPTURED_INDEX] = Empty;
+  boardState[LAST_MOVED_INDEX] = Empty;
 
   _switchTurn(turn);
   _setEpSquare(epIndex);
@@ -1847,7 +1593,6 @@ void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
   stack.clear();
   _pseudoStack.clear();
 
-  _hasGeneratedMoves = false;
   _generatePseudoLegal();
 
   _statusDirty = true;

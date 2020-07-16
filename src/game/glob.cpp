@@ -213,6 +213,13 @@ int u64ToCol(u64 space) {
     return bitscanForward(space) % 8;
 }
 
+int intToRow(int s) {
+    return s / 8;
+}
+int intToCol(int s) {
+    return s % 8;
+}
+
 u64 u64FromPair(int r, int c) {
     int shift = r*8 + c; //flatten index
     return u64FromIndex(shift);

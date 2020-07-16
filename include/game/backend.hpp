@@ -7,7 +7,67 @@
 #include <game/move.hpp>
 
 struct LazyMovegen {
-  
+  std::array<int, 64> srcList;
+  int srcIndex;
+  int numSrcs;
+
+  std::array<int, 64> currDests;
+  int currDestIndex;
+  int numCurrDests;
+  bool _hasNext;
+
+
+  bool hasNext() { return _hasNext; }
+
+  LazyMovegen(u64 srcMap, std::array<u64, 64> &attackMap) {
+    _hasNext = true;
+    bitscanAllInt(srcList, srcMap, numSrcs);
+    if (numSrcs == 0) {
+      _hasNext = false;
+    }
+    srcIndex = 0;
+    while (true) {
+      if (srcIndex == numSrcs) {
+        _hasNext = false;
+        break;
+      }
+      bitscanAllInt(currDests, attackMap[srcList[srcIndex]], numCurrDests);
+      currDestIndex = 0;
+      if (numCurrDests == 0) {
+        srcIndex += 1;
+      } else {
+        break;
+      }
+    }
+  }
+
+  void next(std::array<u64, 64> &attackMap, int &srcout, int &destout) {
+    if (!hasNext()) { throw; }
+    srcout = srcList[srcIndex];
+    destout = currDests[currDestIndex];
+    currDestIndex += 1;
+    if (currDestIndex == numCurrDests) {
+      srcIndex += 1;
+      if (srcIndex == numSrcs) {
+        _hasNext = false;
+      } else {
+        //load new
+        while (true) {
+          if (srcIndex == numSrcs) {
+            _hasNext = false;
+            break;
+          }
+          bitscanAllInt(currDests, attackMap[srcList[srcIndex]], numCurrDests);
+          currDestIndex = 0;
+          if (numCurrDests == 0) {
+            srcIndex += 1;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+  }
 };
 
 struct BoardStateNode {
@@ -57,6 +117,8 @@ public:
   BoardStateStack() { _index = 0; }
 
   Move peekAt(int index) { return _data[index].mv; }
+
+  BoardStateNode peekNodeAt(int index) { return _data[index]; }
 
   void clear() {
     _index = 0;

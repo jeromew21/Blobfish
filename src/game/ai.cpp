@@ -23,11 +23,11 @@ int AI::evaluation(Board &board) { // positive good for white, negative for
     return 0;
   }
   int score = materialEvaluation(board);
-  for (int i = 0; i < (int)board.stack.getIndex(); i++) {
+  for (int i = 0; i < (int) board.stack.getIndex(); i++) {
     Move mv = board.stack.peekAt(i);
-    MoveType mvtyp = mv.moveType;
-    if (mvtyp == MoveType::CastleLong || mvtyp == MoveType::CastleShort) {
-      if (mv.mover == W_King) {
+    uint8_t mvtyp = mv.getTypeCode();
+    if (mvtyp == MoveTypeCode::CastleLong || mvtyp == MoveTypeCode::CastleShort) {
+      if (i % 2 == 0) {
         score += 30; // castling is worth 30 cp
       } else {
         score -= 30;
@@ -230,47 +230,36 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
     }
   }
 
-  std::vector<Move> moves; // = board.legalMoves();
-  bool isCheck = board.isCheck();
-  if (isCheck) {
-    moves = board.produceUncheckMoves();
-  } else {
-    moves = board.legalMoves();
-  }
+  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
+  std::vector<Move> sbuffer;
+  bool hasGenSpecial;
+  Move mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
 
   if (baseline >= beta)
     return beta; // fail hard
-
-  int matSwingUpperBound = 1000;
-  for (Move &mv : moves) {
-    if (mv.moveType == MoveType::Promotion) {
-      matSwingUpperBound += 1000;
-      break;
-    }
-  }
-
-  if (baseline + matSwingUpperBound < alpha) {
-    return alpha;
-  }
 
   if (alpha < baseline)
     alpha = baseline; // push alpha up to baseline
 
   bool deltaPrune = true;
 
-  for (Move &mv : moves) {
+  u64 occ = board.occupancy();
+
+  bool isCheck = board.isCheck();
+
+  while (mv.notNull()) {
     if (stop) {
       return INTMIN; // mitigate horizon effect, otherwise we could be in big
                      // trouble
     }
-    if (mv.destFormer != Empty) {
+    if (mv.getDest() & occ) {
       // captures, and checks???????????
       if (deltaPrune &&
-          (baseline + 200 + MATERIAL_TABLE[mv.destFormer] < alpha)) {
+          (baseline + 200 + MATERIAL_TABLE[board.pieceAt(mv.getDest())] < alpha)) {
         continue;
       }
 
-      int see = board.see(mv.src, mv.dest, mv.mover, mv.destFormer);
+      int see = board.see(mv);
       if (see >= 0) {
         board.makeMove(mv);
         int score = -1 * quiescence(board, plyCount + 1, -1 * beta, -1 * alpha,
@@ -291,6 +280,7 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
       if (score > alpha)
         alpha = score;
     }
+    mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
   }
   return alpha;
 }
@@ -302,8 +292,10 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
   std::vector<Move> equalCaptures;
   u64 piecemap = board.occupancy();
   for (Move &mv : mvs) {
-    if (mv.dest & piecemap) {
-      int see = board.see(mv.src, mv.dest, mv.mover, mv.destFormer);
+    u64 dest = mv.getDest();
+
+    if (dest & piecemap) {
+      int see = board.see(mv);
       if (see > 0) {
         winningCaptures.push_back(mv);
       } else if (see == 0) {
@@ -340,7 +332,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   }
 
   if (depth <= 0) {
-    int score = quiescence(board, plyCount, alpha, beta, stop, count, INTMAX);
+    int score = quiescence(board, plyCount+1, alpha, beta, stop, count, INTMAX);
     return score;
   }
 
@@ -349,7 +341,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   TableNode node(board, depth, NodeType::PV);
 
-  /*
   auto found = table.find(node);
   if (found != table.end()) {
       if (found->first.depth >= depth) { //searched already to a higher depth
@@ -370,22 +361,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
               return found->second;
           }
       }
-  }
-  */
-
-  auto moves = board.legalMoves();
-  orderMoves(board, moves);
-
-  if (foundHashMove) {
-    // Put hash move first
-    for (int i = 0; i < (int)moves.size(); i++) {
-      if (moves[i] == pvMove) {
-        Move temp = moves[i];
-        moves.erase(moves.begin() + i);
-        moves.push_back(temp);
-        break;
-      }
-    }
   }
 
   bool nodeIsCheck = board.isCheck();
@@ -423,13 +398,61 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     fscore = AI::flippedEval(board);
   }
 
-  while (moves.size() > 0) {
-    Move mv = moves.back();
-    moves.pop_back();
+  u64 occ = board.occupancy();
 
+  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
+  std::vector<Move> sbuffer;
+  bool hasGenSpecial;
+  Move mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
+
+  std::vector<Move> posCaptures;
+  std::vector<Move> eqCaptures;
+  std::vector<Move> allOther;
+  int phase = 0;
+
+  while (mv.notNull() || posCaptures.size() + eqCaptures.size() + allOther.size() > 0) {
+    //sort on the fly
+    if (mv.notNull()) {
+      //we are seeing mv for the first time
+      if (foundHashMove && mv == pvMove) {
+        phase += 1;
+      } else if (mv.getDest() & occ) {
+        int see = board.see(mv);
+        if (see > 0) {
+          if (phase > 0) {
+            //go forward
+          } else {
+            posCaptures.push_back(mv);
+            //still looking for hash move
+          }
+        } else if (see == 0) {
+          eqCaptures.push_back(mv);
+          continue;
+        } else {
+          allOther.push_back(mv);
+          continue;
+        }
+      } else {
+        allOther.push_back(mv);
+        continue;
+      }
+    } else {
+      //out of moves. fallback
+      if (posCaptures.size() > 1) {
+        mv = posCaptures.back();
+        posCaptures.pop_back();
+      } else if (eqCaptures.size() > 1) {
+        mv = eqCaptures.back();
+        eqCaptures.pop_back();
+      } else {
+        mv = allOther.back();
+        allOther.pop_back();
+      }
+    }
+    
     if ((futilityPrune && depth == 1) && movesSearched > 1) {
-      if ((mv.destFormer == Empty && !(mv == pvMove)) &&
-          (!board.isCheckingMove(mv) && !nodeIsCheck)) {
+      if (((mv.getDest() & occ) && !(mv == pvMove)) 
+      && (!board.isCheckingMove(mv) && !nodeIsCheck)) {
         if (fscore + 900 < alpha) {
           continue;
         }
@@ -473,6 +496,8 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       node.bestMove = mv;
       alpha = score; // push up alpha
     }
+
+    mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
   }
   table.insert(node, alpha); // store node
   if (node.nodeType == NodeType::PV) {
