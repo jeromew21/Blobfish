@@ -127,11 +127,10 @@ int quiescence(Board &board, int plyCount, int alpha, int beta,
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
                   std::atomic<bool> &stop, int &count);
 
-void orderMoves(Board &board, std::vector<Move> &mvs);
+void orderMoves(Board &board, std::vector<Move> &mvs, int ply);
 
 void init();
 
-void clearPvTable();
 } // namespace AI
 
 #endif

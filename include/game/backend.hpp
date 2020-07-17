@@ -77,7 +77,32 @@ struct BoardStateNode {
 };
 
 struct KillerTable {
-  //
+  std::array<std::array<Move, 2>, 32> arr;
+
+  void clear() {
+    for (int k = 0; k < 32; k++) {
+      arr[k][0] = Move::NullMove();
+      arr[k][1] = Move::NullMove();
+    }
+  }
+
+  bool contains(Move mv, int ply) {
+    return arr[ply][0] == mv || arr[ply][1] == mv;
+  }
+
+  void push(Move mv, int ply) {
+    for (int i = 0; i < 2; i++) {
+      if (arr[ply][i].isNull()) {
+        arr[ply][i] = mv;
+        return;
+      } else if (arr[ply][i] == mv) {
+        return;
+      }
+    }
+    //otherwise replace
+    arr[ply][0] = arr[ply][1];
+    arr[ply][1] = mv;
+  }
 };
 
 struct PseudoLegalData {

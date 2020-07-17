@@ -59,6 +59,16 @@ void initializeZobrist() {
   debugLog("Initialized zobrist hashes");
 }
 
+std::string moveToUCIAlgebraic(Move mv) {
+  std::string result;
+  result += squareName(mv.getSrc());
+  result += squareName(mv.getDest());
+  if (mv.isPromotion()) {
+    result += pieceToStringAlphLower(mv.getPromotingPiece());
+  }
+  return result;
+}
+
 void populateMoveCache() {
   const int ROOK_MOVES[4][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
   const int BISHOP_MOVES[4][2] = {{1, -1}, {1, 1}, {-1, 1}, {-1, -1}};
@@ -401,16 +411,6 @@ std::string Board::moveToExtAlgebraic(Move mv) {
   return result;
 }
 
-std::string Board::moveToUCIAlgebraic(Move mv) {
-  std::string result;
-  result += squareName(mv.getSrc());
-  result += squareName(mv.getDest());
-  if (mv.isPromotion()) {
-    result += pieceToStringAlphLower(mv.getPromotingPiece());
-  }
-  return result;
-}
-
 bool Board::canUndo() { return stack.canPop(); }
 
 std::string Board::moveToAlgebraic(Move mv) {
@@ -563,6 +563,10 @@ void Board::makeMove(Move mv) {
     u64 dest = mv.getDest();
     PieceType mover = pieceAt(src);
     PieceType destFormer = pieceAt(dest);
+
+    if (mover % 6 == 0 || destFormer != Empty) {
+      boardState[HAS_REPEATED_INDEX] = 0; // reset rep tracker
+    }
 
     boardState[LAST_MOVED_INDEX] = mover;
 

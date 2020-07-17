@@ -132,3 +132,6 @@ r3r1k1/1b1nq2p/p1p1N3/2p2p2/1b1PNP2/PQ1B3P/4RP2/5RK1 b - - 0 24
 
 5k2/1R6/4r3/7K/P7/7P/1b6/8 b - - 0 70
 - wtf is Re7
+
+r4rk1/1p1qppb1/2n2npp/1Qp2bN1/p1P5/P1N3P1/1P2PPBP/R1B2RK1 w - - 0 15
+- Nxa4?

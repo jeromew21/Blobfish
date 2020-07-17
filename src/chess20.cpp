@@ -76,7 +76,7 @@ public:
         bestScore = score;
       }
     }
-    sendCommand("bestmove " + board.moveToUCIAlgebraic(bestMove));
+    sendCommand("bestmove " + moveToUCIAlgebraic(bestMove));
     sendCommand("info string think() routine ended");
     _stopKiller = true;
     _notThinking = true;

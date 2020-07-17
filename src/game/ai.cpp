@@ -2,6 +2,7 @@
 
 TranspositionTable table;
 MiniTable pvTable;
+KillerTable kTable;
 
 u64 BACK_RANK[2];
 
@@ -73,10 +74,12 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
                   std::chrono::_V2::system_clock::time_point start) {
   // IID
 
+  kTable.clear();
+
   TableNode node(board, depth, NodeType::PV);
 
   auto moves = board.legalMoves();
-  orderMoves(board, moves);
+  orderMoves(board, moves, 0);
 
   int alpha = INTMIN;
   int beta = INTMAX;
@@ -142,7 +145,7 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
             std::chrono::_V2::system_clock::time_point start) {
   if (depth == 0)
     return;
-  std::string pv = " pv " + board.moveToUCIAlgebraic(pvMove);
+  std::string pv = " pv " + moveToUCIAlgebraic(pvMove);
 
   board.makeMove(pvMove);
   int mc = 1;
@@ -154,7 +157,7 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
       TableNode node = search->first;
       Move mv = node.bestMove;
       pv += " ";
-      pv += board.moveToUCIAlgebraic(mv);
+      pv += moveToUCIAlgebraic(mv);
       if (!mv.notNull()) {
         std::cout << score << " " << pv << "\n";
         board.dump(true);
@@ -275,11 +278,13 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
   return alpha;
 }
 
-void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
+void AI::orderMoves(Board &board, std::vector<Move> &mvs, int ply) {
   // put see > 0 captures at front first
   std::vector<Move> winningCaptures;
-  std::vector<Move> other;
   std::vector<Move> equalCaptures;
+  std::vector<Move> killer;
+  std::vector<Move> other;
+
   u64 piecemap = board.occupancy();
   for (Move &mv : mvs) {
     u64 dest = mv.getDest();
@@ -293,6 +298,8 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
       } else {
         other.push_back(mv);
       }
+    } else if (kTable.contains(mv, ply)) {
+      killer.push_back(mv);
     } else {
       other.push_back(mv);
     }
@@ -300,10 +307,9 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs) {
   mvs.clear();
   mvs.assign(other.begin(), other.end());
   mvs.insert(mvs.end(), equalCaptures.begin(), equalCaptures.end());
+  mvs.insert(mvs.end(), killer.begin(), killer.end());
   mvs.insert(mvs.end(), winningCaptures.begin(), winningCaptures.end());
 }
-
-void AI::clearPvTable() { pvTable.clear(); }
 
 int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
                       int beta, std::atomic<bool> &stop, int &count) {
@@ -401,11 +407,11 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   int phase = 0;
   */
   auto moves = board.legalMoves();
-  orderMoves(board, moves);
+  orderMoves(board, moves, plyCount);
 
   // put hash move in front
   if (foundHashMove) {
-    for (int i = 0; i < (int)moves.size(); i++) {
+    for (int i = 0; i < (int) moves.size(); i++) {
       if (moves[i] == pvMove) {
         moves.erase(moves.begin() + i);
         moves.push_back(pvMove);
@@ -418,51 +424,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     // sort on the fly?
     Move fmove = moves.back();
     moves.pop_back();
-    /*
-
-    if (mv.notNull()) {
-      //we are seeing mv for the first time
-      if (foundHashMove && mv == pvMove) {
-        fmove = mv;
-        phase += 1;
-      } else if (mv.getDest() & occ) {
-        int see = board.see(mv);
-        if (see > 0) {
-          if (phase > 0) {
-            //go forward
-            fmove = mv;
-          } else {
-            posCaptures.push_back(mv);
-            //still looking for hash move
-            continue;
-          }
-        } else if (see == 0) {
-          eqCaptures.push_back(mv);
-          continue;
-        } else {
-          allOther.push_back(mv);
-          continue;
-        }
-      } else {
-        allOther.push_back(mv);
-        continue;
-      }
-    } else {
-      //out of moves. fallback
-      if (posCaptures.size() > 1) {
-        fmove = posCaptures.back();
-        posCaptures.pop_back();
-      } else if (eqCaptures.size() > 1) {
-        fmove = eqCaptures.back();
-        eqCaptures.pop_back();
-      } else {
-        fmove = allOther.back();
-        allOther.pop_back();
-      }
-    }
-
-    if (!fmove.notNull()) continue;
-    */
 
     if ((futilityPrune && depth == 1) && movesSearched > 1) {
       if ((!(fmove.getDest() & occ) && !(fmove == pvMove)) &&
@@ -501,6 +462,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       node.bestMove = fmove;
       table.insert(node, beta);
       // found a killer
+      if (fmove.getDest() & occ) {
+        kTable.push(fmove, plyCount);
+      }
 
       return beta; // fail hard
     }

@@ -4,31 +4,28 @@
 #include <game/pieces.hpp>
 
 namespace MoveTypeCode {
-  const uint8_t Null = 0;
-  const uint8_t Default = 1;
-  const uint8_t CastleLong = 2;
-  const uint8_t CastleShort = 3;
-  const uint8_t DoublePawn = 4;
-  const uint8_t EnPassant = 5;
-  const uint8_t KPromotion = 6;
-  const uint8_t BPromotion = 7;
-  const uint8_t RPromotion = 8;
-  const uint8_t QPromotion = 9;
+const uint8_t Null = 0;
+const uint8_t Default = 1;
+const uint8_t CastleLong = 2;
+const uint8_t CastleShort = 3;
+const uint8_t DoublePawn = 4;
+const uint8_t EnPassant = 5;
+const uint8_t KPromotion = 6;
+const uint8_t BPromotion = 7;
+const uint8_t RPromotion = 8;
+const uint8_t QPromotion = 9;
 }; // namespace MoveTypeCode
 
 struct Move {
   uint16_t data;
 
-  static Move NullMove() {
-    static Move mv = Move(); // use "pawn" as null flag
-    return mv;
-  }
+  static Move NullMove() { return Move(); }
 
-  bool notNull() {
-    return getTypeCode() != MoveTypeCode::Null;
-  }
+  inline bool isNull() { return getTypeCode() == MoveTypeCode::Null; }
 
-  uint8_t getTypeCode() { return data & 15u; }
+  inline bool notNull() { return getTypeCode() != MoveTypeCode::Null; }
+
+  inline uint8_t getTypeCode() { return data & 15u; }
 
   PieceType getPromotingPiece() {
     uint8_t moveType = getTypeCode();
@@ -44,17 +41,17 @@ struct Move {
     return promotion;
   }
 
-  bool isPromotion() {
+  inline bool isPromotion() {
     uint8_t tc = getTypeCode();
     return tc >= MoveTypeCode::KPromotion && tc <= MoveTypeCode::QPromotion;
   }
 
-  u64 getSrc() {
+  inline u64 getSrc() {
     int s = data >> 10;
     return u64FromIndex(s);
   }
 
-  u64 getDest() {
+  inline u64 getDest() {
     int d = (data >> 4) & 63; // keep top 6 bits
     return u64FromIndex(d);
   }
@@ -63,9 +60,7 @@ struct Move {
     data = (src0 << 10) | (dest0 << 4) | (typeCode & 15u);
   }
 
-  Move() {
-    data = 0;
-  }
+  Move() { data = 0; }
 
   bool operator==(const Move &other) const { return data == other.data; }
 };

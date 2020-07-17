@@ -8,6 +8,7 @@
 
 void populateMoveCache();
 void initializeZobrist();
+std::string moveToUCIAlgebraic(Move mv);
 
 class Board
 {
@@ -102,7 +103,6 @@ class Board
     bool canUndo();
     Move moveFromAlgebraic(const std::string& alg);
     std::string moveToExtAlgebraic(Move mv);
-    std::string moveToUCIAlgebraic(Move mv);
     std::string moveToAlgebraic(Move mv);
 
     Board() {
