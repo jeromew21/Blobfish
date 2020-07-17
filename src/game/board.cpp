@@ -480,9 +480,19 @@ BoardStatus Board::status() {
     _statusDirty = false;
     // calculate
     if (material(White) + material(Black) <= 350) {
-      _status = BoardStatus::Draw;
-      return _status;
+      return BoardStatus::Draw;
     }
+
+    for (int i = stack.getIndex() - 2; i >= 0; i -= 2) {
+      BoardStateNode& node = stack.peekNodeAt(i);
+      if (node.hash == zobrist()) {
+        return BoardStatus::Draw;
+      }
+      if (node.data[LAST_MOVED_INDEX] % 6 == 0 || node.data[LAST_CAPTURED_INDEX] != Empty) {
+        break;
+      }
+    }
+
     auto movelist = produceUncheckMoves();
     if (movelist.size() == 0) {
       if (isCheck()) {
@@ -553,7 +563,7 @@ void Board::makeMove(Move mv) {
   _statusDirty = true;
 
   // copy old data and move onto stack
-  stack.push(boardState, mv);
+  stack.push(boardState, mv, zobrist());
 
   uint8_t moveType = mv.getTypeCode();
 

@@ -72,7 +72,7 @@ struct LazyMovegen {
 
 struct BoardStateNode {
   int data[BOARD_STATE_ENTROPY];
-  std::vector<u64> hashes;
+  u64 hash;
   Move mv;
 };
 
@@ -119,7 +119,7 @@ public:
 
   Move peekAt(int index) { return _data[index].mv; }
 
-  BoardStateNode peekNodeAt(int index) { return _data[index]; }
+  BoardStateNode& peekNodeAt(int index) { return _data[index]; }
 
   void clear() {
     _index = 0;
@@ -134,12 +134,13 @@ public:
     return _data.back();
   }
 
-  void push(int *data, Move mv) {
+  void push(int *data, Move mv, u64 hash) {
     BoardStateNode node;
     for (size_t i = 0; i < BOARD_STATE_ENTROPY; i++) {
       node.data[i] = data[i];
     }
     node.mv = mv;
+    node.hash = hash;
     _data.push_back(node);
     _index++;
   };
