@@ -10,7 +10,7 @@
 const size_t TABLE_SIZE = 32768;
 const size_t CAPACITY = 32768;
 
-const size_t MINI_TABLE_SIZE = 16384;
+const size_t MINI_TABLE_SIZE = 8192;
 
 enum NodeType { PV = 0, Cut = 1, All = 2 };
 
@@ -127,11 +127,10 @@ int quiescence(Board &board, int plyCount, int alpha, int beta,
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
                   std::atomic<bool> &stop, int &count);
 
-void orderMoves(Board &board, std::vector<Move> &mvs);
+void orderMoves(Board &board, std::vector<Move> &mvs, int ply);
 
 void init();
 
-void clearPvTable();
 } // namespace AI
 
 #endif

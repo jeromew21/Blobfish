@@ -16,8 +16,8 @@ public:
 
   std::thread _stopperTask;
 
-  UCIInterface() { 
-    _notThinking = true; 
+  UCIInterface() {
+    _notThinking = true;
     _stopKiller = false;
   }
 
@@ -63,13 +63,20 @@ public:
         }
         sendCommand("info string mate plies " + std::to_string(plies));
         sendCommand("info score mate " + std::to_string(y));
-        break;
+        if (depth == 0 || depth == 1) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          //the truth hurts
+          //delay a little to save gui the headache
+          break;
+          // only break on immediate mate... otherwise we might 
+          // have stopped too early
+        }
       } else {               // it finishes at that layer
         bestMove = calcMove; // PV-move
         bestScore = score;
       }
     }
-    sendCommand("bestmove " + board.moveToUCIAlgebraic(bestMove));
+    sendCommand("bestmove " + moveToUCIAlgebraic(bestMove));
     sendCommand("info string think() routine ended");
     _stopKiller = true;
     _notThinking = true;
@@ -88,7 +95,7 @@ public:
 
   void delayStop(int msecs) {
     auto start = std::chrono::high_resolution_clock::now();
-    while(true) {
+    while (true) {
       auto stop = std::chrono::high_resolution_clock::now();
       auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
           stop - start); // or milliseconds
@@ -97,7 +104,7 @@ public:
         break;
       }
       if (_stopKiller) {
-        return; //
+        return;
       }
     }
     _notThinking = true; // stop the other thread
@@ -199,80 +206,80 @@ operation.*/
          engine, the GUI should have sent a "ucinewgame" inbetween.
       */
     } else if (tokens[0] == "go") {
-      //stopThinking();
-        /*
-           * go
-           start calculating on the current position set up with the "position"
-           command. There are a number of commands that can follow this command,
-           all will be sent in the same string. If one command is not send its
-           value should be interpreted as it would not influence the search.
-           * searchmoves  ....
-              restrict search to this moves only
-              Example: After "position startpos" and "go infinite searchmoves
-           e2e4 d2d4" the engine should only search the two moves e2e4 and d2d4
-           in the initial position.
-           * ponder
-              start searching in pondering mode.
-              Do not exit the search in ponder mode, even if it's mate!
-              This means that the last move sent in in the position string is
-           the ponder move. The engine can do what it wants to do, but after a
-           "ponderhit" command it should execute the suggested move to ponder
-           on. This means that the ponder move sent by the GUI can be
-           interpreted as a recommendation about which move to ponder. However,
-           if the engine decides to ponder on a different move, it should not
-           display any mainlines as they are likely to be misinterpreted by the
-           GUI because the GUI expects the engine to ponder on the suggested
-           move.
-           * wtime
-              white has x msec left on the clock
-           * btime
-              black has x msec left on the clock
-           * winc
-              white increment per move in mseconds if x > 0
-           * binc
-              black increment per move in mseconds if x > 0
-           * movestogo
-           there are x moves to the next time control,
-              this will only be sent if x > 0,
-              if you don't get this and get the wtime and btime it's sudden
-           death
-           * depth
-              search x plies only.
-           * nodes
-              search x nodes only,
-           * mate
-              search for a mate in x moves
-           * movetime
-              search exactly x mseconds
-           * infinite
-              search until the "stop" command. Do not exit the search without
-           being told so in this mode!
-        */
-        Color color = board.turn();
-        bool inf = false;
-        int myTime = 0;
-        for (int k = 1; k < (int)tokens.size(); k++) {
-          auto token = tokens[k];
-          if (token == "wtime") {
-            k++;
-            if (color == White && myTime == 0) {
-              myTime = std::stoi(tokens[k]);
-            }
-          } else if (token == "btime" && myTime == 0) {
-            k++;
-            if (color == Black) {
-              myTime = std::stoi(tokens[k]);
-            }
-          } else if (token == "movetime") {
-            k++;
+      // stopThinking();
+      /*
+         * go
+         start calculating on the current position set up with the "position"
+         command. There are a number of commands that can follow this command,
+         all will be sent in the same string. If one command is not send its
+         value should be interpreted as it would not influence the search.
+         * searchmoves  ....
+            restrict search to this moves only
+            Example: After "position startpos" and "go infinite searchmoves
+         e2e4 d2d4" the engine should only search the two moves e2e4 and d2d4
+         in the initial position.
+         * ponder
+            start searching in pondering mode.
+            Do not exit the search in ponder mode, even if it's mate!
+            This means that the last move sent in in the position string is
+         the ponder move. The engine can do what it wants to do, but after a
+         "ponderhit" command it should execute the suggested move to ponder
+         on. This means that the ponder move sent by the GUI can be
+         interpreted as a recommendation about which move to ponder. However,
+         if the engine decides to ponder on a different move, it should not
+         display any mainlines as they are likely to be misinterpreted by the
+         GUI because the GUI expects the engine to ponder on the suggested
+         move.
+         * wtime
+            white has x msec left on the clock
+         * btime
+            black has x msec left on the clock
+         * winc
+            white increment per move in mseconds if x > 0
+         * binc
+            black increment per move in mseconds if x > 0
+         * movestogo
+         there are x moves to the next time control,
+            this will only be sent if x > 0,
+            if you don't get this and get the wtime and btime it's sudden
+         death
+         * depth
+            search x plies only.
+         * nodes
+            search x nodes only,
+         * mate
+            search for a mate in x moves
+         * movetime
+            search exactly x mseconds
+         * infinite
+            search until the "stop" command. Do not exit the search without
+         being told so in this mode!
+      */
+      Color color = board.turn();
+      bool inf = false;
+      int myTime = 0;
+      for (int k = 1; k < (int)tokens.size(); k++) {
+        auto token = tokens[k];
+        if (token == "wtime") {
+          k++;
+          if (color == White && myTime == 0) {
             myTime = std::stoi(tokens[k]);
-          } else if (token == "infinite") {
-            myTime = 10000000; // close enough
-            inf = true;
           }
+        } else if (token == "btime" && myTime == 0) {
+          k++;
+          if (color == Black) {
+            myTime = std::stoi(tokens[k]);
+          }
+        } else if (token == "movetime") {
+          k++;
+          myTime = std::stoi(tokens[k]);
+        } else if (token == "infinite") {
+          myTime = 10000000; // close enough
+          inf = true;
         }
-        int t = ((double)myTime / 30.0);
-        startThinking(t, inf);
+      }
+      int t = ((double)myTime / 30.0);
+      startThinking(t, inf);
     } else if (tokens[0] == "stop") {
       /*
          stop
@@ -296,6 +303,10 @@ operation.*/
       exit(0);
     } else if (tokens[0] == "dump") {
       board.dump(true);
+    } else if (tokens[0] == "unmake") {
+      if (board.canUndo()) {
+        board.unmakeMove();
+      }
     }
   }
 
@@ -309,9 +320,17 @@ int main() {
   // srand100(65634536);
   srand100(13194);
 
+  // std::cout << std::cin.read();
+
   {
     UCIInterface interface;
     for (std::string command; std::getline(std::cin, command);) {
+      auto tokens = tokenize(command);
+      if (tokens.size() > 0 && tokens[0] == "vector") {
+        Board b;
+        b.loadPosition(command.substr(7, command.size()));
+        std::cout << b.vectorize();
+      } //vectorize a FEN tool
       interface.recieveCommand(command);
     }
   }

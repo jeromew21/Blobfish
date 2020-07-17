@@ -3,89 +3,66 @@
 
 #include <game/pieces.hpp>
 
-enum class MoveType {
-  Default = 0,
-  EnPassant = 1,
-  Promotion = 2,
-  CastleLong = 3,
-  CastleShort = 4,
-  PawnDouble = 5,
-  END = 6,
-  Null = 7
-};
+namespace MoveTypeCode {
+const uint8_t Null = 0;
+const uint8_t Default = 1;
+const uint8_t CastleLong = 2;
+const uint8_t CastleShort = 3;
+const uint8_t DoublePawn = 4;
+const uint8_t EnPassant = 5;
+const uint8_t KPromotion = 6;
+const uint8_t BPromotion = 7;
+const uint8_t RPromotion = 8;
+const uint8_t QPromotion = 9;
+}; // namespace MoveTypeCode
 
 struct Move {
-  PieceType mover;
-  u64 src;
-  u64 dest;
-  MoveType moveType;
-  PieceType destFormer; // if it was a capture, then this is the captured piece
-  PieceType promotion;  // piece to promote to
+  uint16_t data;
 
-  static Move END() {
-    // return Constructor(MoveType::END, 0, 0, 0, 0, 0);
-    // TODO: Optimize by always returning the same object
-    static Move mv = Move(MoveType::END, 0, 0, 0, 0, 0);
-    return mv;
+  static Move NullMove() { return Move(); }
+
+  inline bool isNull() { return getTypeCode() == MoveTypeCode::Null; }
+
+  inline bool notNull() { return getTypeCode() != MoveTypeCode::Null; }
+
+  inline uint8_t getTypeCode() { return data & 15u; }
+
+  PieceType getPromotingPiece() {
+    uint8_t moveType = getTypeCode();
+    PieceType promotion = moveType - 5;
+    return promotion;
   }
 
-  static Move NullMove() {
-    static Move mv = Move(MoveType::Null, 0, 0, 0, 0, 0);
-    return mv;
+  PieceType getPromotingPiece(Color c) {
+    PieceType promotion = getPromotingPiece();
+    if (c == Black) {
+      promotion += 6;
+    }
+    return promotion;
   }
 
-  static Move DefaultMove(PieceType mover, u64 src, u64 dest) {
-    return Move(MoveType::Default, mover, src, dest, Empty, mover);
+  inline bool isPromotion() {
+    uint8_t tc = getTypeCode();
+    return tc >= MoveTypeCode::KPromotion && tc <= MoveTypeCode::QPromotion;
   }
 
-  static Move SpecialMove(MoveType specialType, PieceType mover, u64 src,
-                          u64 dest) {
-    return Move(specialType, mover, src, dest, Empty, mover);
+  inline u64 getSrc() {
+    int s = data >> 10;
+    return u64FromIndex(s);
   }
 
-  static Move DoublePawnMove(PieceType mover, u64 src, u64 dest) {
-    return Move(MoveType::PawnDouble, mover, src, dest, Empty, mover);
+  inline u64 getDest() {
+    int d = (data >> 4) & 63; // keep top 6 bits
+    return u64FromIndex(d);
   }
 
-  static Move PromotionMove(PieceType mover, u64 src, u64 dest,
-                            PieceType promotion) {
-    return Move(MoveType::Promotion, mover, src, dest, Empty, promotion);
+  Move(int src0, int dest0, uint8_t typeCode) {
+    data = (src0 << 10) | (dest0 << 4) | (typeCode & 15u);
   }
 
-  static Move
-  Constructor(MoveType moveType, PieceType mover, u64 src, u64 dest,
-              PieceType destFormer,
-              PieceType promotion) { // Return a value for a default move
-    Move mv;
-    mv.moveType = moveType;
-    mv.src = src;
-    mv.dest = dest;
-    mv.mover = mover;
-    mv.destFormer = destFormer;
-    mv.promotion = promotion;
-    return mv;
-  }
+  Move() { data = 0; }
 
-  Move(MoveType moveType0, PieceType mover0, u64 src0, u64 dest0,
-       PieceType destFormer0,
-       PieceType promotion0) { // Return a value for a default move
-    moveType = moveType0;
-    src = src0;
-    dest = dest0;
-    mover = mover0;
-    destFormer = destFormer0;
-    promotion = promotion0;
-  }
-
-  Move() {
-    src = 0;
-    dest = 0;
-  }
-
-  bool operator==(const Move &other) const {
-    return (src == other.src && dest == other.dest) &&
-           (promotion == other.promotion);
-  }
+  bool operator==(const Move &other) const { return data == other.data; }
 };
 
 #endif

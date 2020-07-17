@@ -17,14 +17,17 @@
 const int INTMIN = -10000000; // minimum value
 const int INTMAX =  10000000;
 
-const size_t BOARD_STATE_ENTROPY = 6;
+const int BOARD_STATE_ENTROPY = 9;
 
-const size_t TURN_INDEX = 0;
-const size_t EN_PASSANT_INDEX = 1;
-const size_t W_LONG_INDEX = 2;
-const size_t W_SHORT_INDEX = 3;
-const size_t B_LONG_INDEX = 4;
-const size_t B_SHORT_INDEX = 5;
+const int TURN_INDEX = 0;
+const int EN_PASSANT_INDEX = 1;
+const int W_LONG_INDEX = 2;
+const int W_SHORT_INDEX = 3;
+const int B_LONG_INDEX = 4;
+const int B_SHORT_INDEX = 5;
+const int LAST_MOVED_INDEX = 6;
+const int LAST_CAPTURED_INDEX = 7;
+const int HAS_REPEATED_INDEX = 8;
 
 const Color White = 0;
 const Color Black = 1;
@@ -69,6 +72,10 @@ inline u64 u64FromIndex(int i) { //fixed, should work
 
 int u64ToRow(u64 space);
 int u64ToCol(u64 space);
+
+int intToRow(int s);
+int intToCol(int s);
+
 inline int u64ToIndex(u64 space) {
     return bitscanForward(space);
 }

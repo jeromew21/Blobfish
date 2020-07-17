@@ -8,17 +8,13 @@
 
 void populateMoveCache();
 void initializeZobrist();
+std::string moveToUCIAlgebraic(Move mv);
 
 class Board
 {
   private:
-    bool _hasGeneratedMoves;
     bool _statusDirty;
     BoardStatus _status;
-
-    std::vector<Move> _legalMovesBuffer;
-    std::vector<Move> _tacticalMoveBuffer;
-    std::vector<Move> _quietMoveBuffer;
 
     std::vector<PseudoLegalData> _pseudoStack;
 
@@ -55,7 +51,10 @@ class Board
     std::array<u64, 64> attackMap;
     std::array<u64, 64> defendMap;
 
-    bool verifyLegal(Move &mv);
+    bool verifyLegal(Move mv);
+
+    void generateSpecialMoves(std::vector<Move>& sbuffer);
+    Move nextMove(LazyMovegen& movegen, std::vector<Move>& sbuffer, bool &hasGenSpecial);
 
     u64 rookStartingPositions[2][2];
     u64 kingStartingPositions[2];
@@ -64,22 +63,23 @@ class Board
     u64 occupancy();
     u64 occupancy(Color color); //COSTLY????
 
-    int see(u64 src, u64 dest, PieceType attacker, PieceType targetPiece);
+    int see(Move mv);
+
+    std::string vectorize(); //stdout a string rep
 
     int mobility(Color color);
 
     //shortcut move gen
     std::vector<Move> produceUncheckMoves();
 
-    bool isCheckingMove(Move &mv);
+    bool isCheckingMove(Move mv, Color aColor, Color kingColor);
+    bool isCheckingMove(Move mv);
 
     //Important stuff
-    void generateLegalMoves();
     std::vector<Move> legalMoves(); // calls generate
     Color turn();
     u64 zobrist();
 
-    bool isTerminal();
     bool isCheck();
 
     //costly calls
@@ -92,7 +92,7 @@ class Board
   
     //STATE CHANGERS
     void reset();
-    void makeMove(Move &mv);
+    void makeMove(Move mv);
     void unmakeMove();
     void loadPosition(PieceType* piecelist, Color turn, int epIndex, int wlong, int wshort, int blong, int bshort);
     void loadPosition(std::string fen);
@@ -102,10 +102,8 @@ class Board
     void dump();
     bool canUndo();
     Move moveFromAlgebraic(const std::string& alg);
-    std::string moveToAlgebraicNoDisambig(const Move &mv);
-    std::string moveToExtAlgebraic(const Move &mv);
-    std::string moveToUCIAlgebraic(const Move &mv);
-    std::string moveToAlgebraic(const Move &mv);
+    std::string moveToExtAlgebraic(Move mv);
+    std::string moveToAlgebraic(Move mv);
 
     Board() {
       reset();
