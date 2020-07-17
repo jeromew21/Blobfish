@@ -72,6 +72,7 @@ struct LazyMovegen {
 
 struct BoardStateNode {
   int data[BOARD_STATE_ENTROPY];
+  std::vector<u64> hashes;
   Move mv;
 };
 

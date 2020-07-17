@@ -880,15 +880,10 @@ void Board::dump(bool debug) {
     }
     std::cout << "\nLegal: ";
     for (Move &mv : moves) {
-      std::cout << moveToUCIAlgebraic(mv) << ":";
-      std::cout << (int)mv.notNull() << ":";
-      std::cout << (int)moveFromAlgebraic(moveToUCIAlgebraic(mv)).notNull()
-                << " ";
-      /*std::cout << "(" << (int)mv.getTypeCode() << ")"
-                << " ";
+      std::cout << moveToUCIAlgebraic(mv) << " ";
       if (mv.getDest() & occupancy()) {
-        // std::cout << " see: " << see(mv);
-      }*/
+        std::cout << ": " << see(mv) << " ";
+      }
     }
     std::cout << "\nOut-Of-Check: ";
     for (Move &mv : produceUncheckMoves()) {
@@ -1238,7 +1233,7 @@ Board::_leastValuablePiece(u64 sqset, Color color,
 
 int Board::see(Move mv) {
   u64 src = mv.getSrc();
-  u64 dest = mv.getSrc();
+  u64 dest = mv.getDest();
   PieceType attacker = pieceAt(src);
   PieceType targetPiece = pieceAt(dest);
 

@@ -1,5 +1,7 @@
 # Chess
 
+Current strength is unknown, likely around 2000
+
 # Running list of features
 1. UCI compatability (only partially implemented but tested with Lichess-Bot, and Cutechess)
 4. Alpha-beta pruning
@@ -11,17 +13,17 @@
 
 # Todos (in order of priority)
 1. Improve hash table
+8. Improve evaluation (neural eval?)
 1. Optimize for lazy move generation
-7. Move ordering concerns (heuristics, static exchange evaluation)
+7. Move ordering concerns
 3. Create testing suite
 4. Search extensions and reductions
 3. Speed up and fix threefold repetition (significant bottleneck)
 4. Improve quiescience search (delta pruning, checks, etc)
 5. Add more pruning (null, etc)
-8. Improve evaluation (neural eval?)
 6. Complete implementation of UCI interface (pondering, etc)
-6. Resolve exit during search issues (instead of defaulting to previous ply)
-2. Fix redundant calls in board (unsure of how much this effects performance)
+6. Resolve exit during search issues
+10. Experiment with fail-soft instead of fail hard
 9. Implement Scout/PVS on top of alpha-beta
 1. parallel search ideas
 9. Look at MCTS / alternative search algorithms
