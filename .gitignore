@@ -2,3 +2,5 @@
 .vscode
 *.svg
 callgrind.out.*
+*.o
+chess20
