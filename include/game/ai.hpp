@@ -10,7 +10,7 @@
 const size_t TABLE_SIZE = 32768;
 const size_t CAPACITY = 32768;
 
-const size_t MINI_TABLE_SIZE = 16384;
+const size_t MINI_TABLE_SIZE = 8192;
 
 enum NodeType { PV = 0, Cut = 1, All = 2 };
 

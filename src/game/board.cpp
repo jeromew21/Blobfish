@@ -224,8 +224,8 @@ int Board::material(Color color) {
 void Board::_generatePseudoLegal() {
   // generate attack-defend sets
   for (int i = 0; i < 64; i++) {
-    attackMap[i] = 0;
-    defendMap[i] = 0;
+    attackMap[i] = (u64)0;
+    defendMap[i] = (u64)0;
   }
   u64 occ = occupancy();
 
@@ -330,8 +330,16 @@ bool Board::isCheck() {
 }
 
 std::vector<Move> Board::produceUncheckMoves() {
-  //todo make this work
-  return legalMoves();
+  // todo make this work
+  std::vector<Move> result;
+  LazyMovegen movegen(occupancy(turn()), attackMap);
+  std::vector<Move> sbuffer;
+  bool hasGenSpecial = false;
+  Move mv = nextMove(movegen, sbuffer, hasGenSpecial);
+  if (mv.notNull()) {
+    result.push_back(mv);
+  }
+  return result;
 }
 
 PieceType Board::pieceAt(u64 space, Color c) {
@@ -356,15 +364,12 @@ PieceType Board::pieceAt(u64 space) {
 }
 
 Move Board::moveFromAlgebraic(const std::string &alg) {
-  static std::regex rPawn("([a-h][1-8])(-|x)([a-h][1-8])");
-  static std::regex rOther("([KQNBR][a-h][1-8])(-|x)([a-h][1-8])");
-  static std::regex rPromotion("([a-h][1-8])(-|x)([a-h][1-8])([QNBR])");
-
   // shortcut way
   auto moves = legalMoves();
   for (Move &mv : moves) {
-    if ((moveToExtAlgebraic(mv) == alg || moveToAlgebraic(mv) == alg) ||
-        moveToUCIAlgebraic(mv) == alg) {
+    if (moveToUCIAlgebraic(mv).compare(alg) == 0 ||
+        (moveToExtAlgebraic(mv).compare(alg) == 0 ||
+         moveToAlgebraic(mv).compare(alg) == 0)) {
       return mv;
     }
   }
@@ -875,12 +880,15 @@ void Board::dump(bool debug) {
     }
     std::cout << "\nLegal: ";
     for (Move &mv : moves) {
-      std::cout << moveToExtAlgebraic(mv) << " ";
-      std::cout << "(" << (int)mv.getTypeCode() << ")"
+      std::cout << moveToUCIAlgebraic(mv) << ":";
+      std::cout << (int)mv.notNull() << ":";
+      std::cout << (int)moveFromAlgebraic(moveToUCIAlgebraic(mv)).notNull()
+                << " ";
+      /*std::cout << "(" << (int)mv.getTypeCode() << ")"
                 << " ";
       if (mv.getDest() & occupancy()) {
         // std::cout << " see: " << see(mv);
-      }
+      }*/
     }
     std::cout << "\nOut-Of-Check: ";
     for (Move &mv : produceUncheckMoves()) {
@@ -901,7 +909,7 @@ void Board::dump(bool debug) {
       std::cout << (int)node.data[LAST_CAPTURED_INDEX] << ") ";
       std::cout << (int)node.data[EN_PASSANT_INDEX] << ") ";
     }
-    // std::cout << "\n" << fen();
+    std::cout << "\n" << fen();
     std::cout << "\n";
     std::cout << "\n";
     /*
@@ -916,7 +924,7 @@ void Board::dump(bool debug) {
   }
 }
 
-void Board::generateSpecialMoves(std::vector<Move>& sbuffer) {
+void Board::generateSpecialMoves(std::vector<Move> &sbuffer) {
   // fill specialbuffer
   // pawn moves: en passant and double moves
   // castles
@@ -938,8 +946,7 @@ void Board::generateSpecialMoves(std::vector<Move>& sbuffer) {
     if (boardState[EN_PASSANT_INDEX] >= 0 &&
         u64FromIndex(boardState[EN_PASSANT_INDEX]) & attackMap[srci]) {
       sbuffer.push_back(
-          Move(srci, boardState[EN_PASSANT_INDEX],
-               MoveTypeCode::EnPassant));
+          Move(srci, boardState[EN_PASSANT_INDEX], MoveTypeCode::EnPassant));
     }
     u64 singleMove = PAWN_MOVE_CACHE[srci][color] & ~occ;
     if (singleMove) {
@@ -952,14 +959,10 @@ void Board::generateSpecialMoves(std::vector<Move>& sbuffer) {
       }
       if (row == pRow) {
         int desti = u64ToIndex(singleMove);
-        sbuffer.push_back(
-            Move(srci, desti, MoveTypeCode::BPromotion));
-        sbuffer.push_back(
-            Move(srci, desti, MoveTypeCode::RPromotion));
-        sbuffer.push_back(
-            Move(srci, desti, MoveTypeCode::KPromotion));
-        sbuffer.push_back(
-            Move(srci, desti, MoveTypeCode::QPromotion));
+        sbuffer.push_back(Move(srci, desti, MoveTypeCode::BPromotion));
+        sbuffer.push_back(Move(srci, desti, MoveTypeCode::RPromotion));
+        sbuffer.push_back(Move(srci, desti, MoveTypeCode::KPromotion));
+        sbuffer.push_back(Move(srci, desti, MoveTypeCode::QPromotion));
       } else {
         sbuffer.push_back(
             Move(srci, u64ToIndex(singleMove), MoveTypeCode::Default));
@@ -980,29 +983,30 @@ void Board::generateSpecialMoves(std::vector<Move>& sbuffer) {
     if (boardState[myLongIndex]) {               // is allowed
       if (!(CASTLE_LONG_SQUARES[color] & occ)) { // in-between is empty
         if (!_isUnderAttack(CASTLE_LONG_KING_SLIDE[color], opponent)) {
-          sbuffer.push_back(
-              Move(myKingIndex, u64ToIndex(CASTLE_LONG_KING_DEST[color]),
-                   MoveTypeCode::CastleLong));
+          sbuffer.push_back(Move(myKingIndex,
+                                 u64ToIndex(CASTLE_LONG_KING_DEST[color]),
+                                 MoveTypeCode::CastleLong));
         }
       }
     }
     if (boardState[myShortIndex]) {               // is allowed
       if (!(CASTLE_SHORT_SQUARES[color] & occ)) { // in-between is empty
         if (!_isUnderAttack(CASTLE_SHORT_KING_SLIDE[color], opponent)) {
-          sbuffer.push_back(
-              Move(myKingIndex, u64ToIndex(CASTLE_SHORT_KING_DEST[color]),
-                   MoveTypeCode::CastleShort));
+          sbuffer.push_back(Move(myKingIndex,
+                                 u64ToIndex(CASTLE_SHORT_KING_DEST[color]),
+                                 MoveTypeCode::CastleShort));
         }
       }
     }
   }
 }
 
-Move Board::nextMove(LazyMovegen& movegen, std::vector<Move>& sbuffer, bool &hasGenSpecial) {
+Move Board::nextMove(LazyMovegen &movegen, std::vector<Move> &sbuffer,
+                     bool &hasGenSpecial) {
   if (movegen.hasNext()) {
     int s, d;
     movegen.next(attackMap, s, d);
-    //std::cout << s << "->" << d <<"\n";
+    // std::cout << s << "->" << d <<"\n";
     u64 friendlies = occupancy(turn());
     if (u64FromIndex(d) & friendlies) {
       return nextMove(movegen, sbuffer, hasGenSpecial);
@@ -1419,7 +1423,7 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
   int kingIndex = u64ToIndex(kingBB);
   u64 occ = occupancy();
 
-  if (PAWN_CAPTURE_CACHE[kingIndex][myColor] & bitboard[epawn] ||
+  if (PAWN_CAPTURE_CACHE[kingIndex][kingColor] & bitboard[epawn] ||
       (KNIGHT_MOVE_CACHE[kingIndex] & bitboard[eknight] ||
        KING_MOVE_CACHE[kingIndex] & bitboard[eking])) {
     result = true;
@@ -1489,7 +1493,7 @@ std::vector<Move> Board::legalMoves() {
   std::vector<Move> v;
   LazyMovegen movegen(occupancy(turn()), attackMap);
   std::vector<Move> sbuffer;
-  bool hasGenSpecial;
+  bool hasGenSpecial = false;
   Move mv = nextMove(movegen, sbuffer, hasGenSpecial);
   while (mv.notNull()) {
     v.push_back(mv);

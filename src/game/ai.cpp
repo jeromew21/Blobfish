@@ -79,22 +79,12 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
   int alpha = INTMIN;
   int beta = INTMAX;
 
-  auto found = table.find(node);
-  if (found != table.end()) {
-    if (found->first.depth >= depth) { // searched already to a higher depth
-      NodeType typ = found->first.nodeType;
-      if (typ == NodeType::All) {
-        // upper bound, the exact score might be less.
-        beta = min(beta, found->second);
-      }
-    }
-  }
-
   if (depth > 0) {
-    for (int i = 0; i < (int)moves.size(); i++) {
+    for (int i = 0; i < (int) moves.size(); i++) {
       if (moves[i] == prevPv) {
         moves.erase(moves.begin() + i);
         moves.push_back(prevPv);
+        break;
       }
     }
   } // otherwise at depth = 0 we want our first move to be the PV move
@@ -124,10 +114,6 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
       outscore = alpha;
       return chosen; // returns best found so far
     }                // here bc if AB call stopped, it won't be full search
-
-    if (score >= beta) {
-      // do something??
-    }
 
     if (score > alpha) {
       raisedAlpha = true;
@@ -167,6 +153,11 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
       Move mv = node.bestMove;
       pv += " ";
       pv += board.moveToUCIAlgebraic(mv);
+      if (!mv.notNull()) {
+        std::cout << score << " "<< pv << "\n";
+        board.dump(true);
+        throw;
+      }
       board.makeMove(mv);
       mc++;
     } else {
@@ -208,32 +199,11 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
     return min(alpha, baseline); // alpha vs baseline...
   }
 
-  if (plyCount == 0) {
-    // check table
-    TableNode node(board, 0, NodeType::All);
-    auto found = table.find(node);
-    if (found != table.end()) {
-      NodeType typ = found->first.nodeType;
-      if (typ == NodeType::All) {
-        // upper bound, the exact score might be less.
-        beta = min(beta, found->second);
-      } else if (typ == NodeType::Cut) {
-        // lower bound
-        alpha = max(alpha, found->second);
-
-      } else if (typ == NodeType::PV) {
-        return found->second;
-      }
-      if (alpha >= beta) {
-        return found->second;
-      }
-    }
-  }
-
-  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
+  /*LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
   std::vector<Move> sbuffer;
   bool hasGenSpecial;
   Move mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
+  */
 
   if (baseline >= beta)
     return beta; // fail hard
@@ -241,13 +211,30 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
   if (alpha < baseline)
     alpha = baseline; // push alpha up to baseline
 
-  bool deltaPrune = true;
+  bool deltaPrune = false;
 
   u64 occ = board.occupancy();
 
   bool isCheck = board.isCheck();
 
-  while (mv.notNull()) {
+  auto moves = board.legalMoves();
+
+  int matSwingUpperBound = 1000;
+  for (Move &mv : moves) {
+    if (mv.isPromotion()) {
+      matSwingUpperBound += 1000;
+      break;
+    }
+  }
+
+  if (baseline + matSwingUpperBound < alpha) {
+    return alpha;
+  }
+
+  while (moves.size() > 0) {
+    Move mv = moves.back();
+    moves.pop_back();
+
     if (stop) {
       return INTMIN; // mitigate horizon effect, otherwise we could be in big
                      // trouble
@@ -280,7 +267,7 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
       if (score > alpha)
         alpha = score;
     }
-    mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
+    ///mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
   }
   return alpha;
 }
@@ -339,7 +326,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   Move pvMove;
   bool foundHashMove = false;
 
-  TableNode node(board, depth, NodeType::PV);
+  TableNode node(board, depth, NodeType::All);
 
   auto found = table.find(node);
   if (found != table.end()) {
@@ -353,7 +340,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
               foundHashMove = true;
               pvMove = found->first.bestMove;
               alpha = max(alpha, found->second);
-              node.nodeType = NodeType::Cut;
           } else if (typ == NodeType::PV) {
               return found->second;
           }
@@ -389,7 +375,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     lmr = false; // reduce on 3, 4, 5
   }
   int movesSearched = 0;
-  bool checkExtend = nodeIsCheck;
+  bool checkExtend = nodeIsCheck && depth < 3;
 
   bool futilityPrune = true;
 
@@ -400,6 +386,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   u64 occ = board.occupancy();
 
+  /*
   LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
   std::vector<Move> sbuffer;
   bool hasGenSpecial;
@@ -409,21 +396,42 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   std::vector<Move> eqCaptures;
   std::vector<Move> allOther;
   int phase = 0;
+  */
+  auto moves = board.legalMoves();
+  orderMoves(board, moves);
 
-  while (mv.notNull() || posCaptures.size() + eqCaptures.size() + allOther.size() > 0) {
-    //sort on the fly
+  //put hash move in front
+  if (foundHashMove) {
+    for (int i = 0; i < (int) moves.size(); i++) {
+      if (moves[i] == pvMove) {
+        moves.erase(moves.begin() + i);
+        moves.push_back(pvMove);
+        break;
+      }
+    }
+  }
+
+  while (moves.size() > 0) {
+    //sort on the fly?
+    Move fmove = moves.back();
+    moves.pop_back();
+    /*
+
     if (mv.notNull()) {
       //we are seeing mv for the first time
       if (foundHashMove && mv == pvMove) {
+        fmove = mv;
         phase += 1;
       } else if (mv.getDest() & occ) {
         int see = board.see(mv);
         if (see > 0) {
           if (phase > 0) {
             //go forward
+            fmove = mv;
           } else {
             posCaptures.push_back(mv);
             //still looking for hash move
+            continue;
           }
         } else if (see == 0) {
           eqCaptures.push_back(mv);
@@ -439,27 +447,30 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     } else {
       //out of moves. fallback
       if (posCaptures.size() > 1) {
-        mv = posCaptures.back();
+        fmove = posCaptures.back();
         posCaptures.pop_back();
       } else if (eqCaptures.size() > 1) {
-        mv = eqCaptures.back();
+        fmove = eqCaptures.back();
         eqCaptures.pop_back();
       } else {
-        mv = allOther.back();
+        fmove = allOther.back();
         allOther.pop_back();
       }
     }
+
+    if (!fmove.notNull()) continue;
+    */
     
     if ((futilityPrune && depth == 1) && movesSearched > 1) {
-      if (((mv.getDest() & occ) && !(mv == pvMove)) 
-      && (!board.isCheckingMove(mv) && !nodeIsCheck)) {
+      if ((!(fmove.getDest() & occ) && !(fmove == pvMove)) 
+      && (!board.isCheckingMove(fmove) && !nodeIsCheck)) {
         if (fscore + 900 < alpha) {
           continue;
         }
       }
     }
 
-    board.makeMove(mv);
+    board.makeMove(fmove);
 
     // LMR
     int subdepth = depth - 1;
@@ -484,7 +495,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
       node.nodeType = NodeType::Cut;
-      node.bestMove = mv;
+      node.bestMove = fmove;
       table.insert(node, beta);
       // found a killer
 
@@ -493,11 +504,11 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
     if (score > alpha) {
       node.nodeType = NodeType::PV;
-      node.bestMove = mv;
+      node.bestMove = fmove;
       alpha = score; // push up alpha
     }
 
-    mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
+    //mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
   }
   table.insert(node, alpha); // store node
   if (node.nodeType == NodeType::PV) {
