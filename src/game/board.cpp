@@ -473,24 +473,12 @@ std::string Board::moveToAlgebraic(Move mv) {
   return result;
 }
 
-bool Board::isTerminal() { return status() != BoardStatus::Playing; }
-
 BoardStatus Board::status() {
   if (_statusDirty) {
     _statusDirty = false;
     // calculate
     if (material(White) + material(Black) <= 350) {
       return BoardStatus::Draw;
-    }
-
-    for (int i = stack.getIndex() - 2; i >= 0; i -= 2) {
-      BoardStateNode& node = stack.peekNodeAt(i);
-      if (node.hash == zobrist()) {
-        return BoardStatus::Draw;
-      }
-      if (node.data[LAST_MOVED_INDEX] % 6 == 0 || node.data[LAST_CAPTURED_INDEX] != Empty) {
-        break;
-      }
     }
 
     auto movelist = produceUncheckMoves();
@@ -559,7 +547,6 @@ void Board::_addPiece(PieceType p, u64 location) {
 }
 
 void Board::makeMove(Move mv) {
-
   _statusDirty = true;
 
   // copy old data and move onto stack
@@ -676,6 +663,18 @@ void Board::makeMove(Move mv) {
   _switchTurn();
 
   _generatePseudoLegal();
+
+  if (!boardState[HAS_REPEATED_INDEX]) {
+    for (int i = stack.getIndex() - 2; i >= 0; i -= 2) {
+      BoardStateNode& node = stack.peekNodeAt(i);
+      if (node.hash == zobrist()) {
+        boardState[HAS_REPEATED_INDEX] = 1;
+      }
+      if (node.data[LAST_MOVED_INDEX] % 6 == 0 || node.data[LAST_CAPTURED_INDEX] != Empty) {
+        break;
+      }
+    }
+  }
 }
 
 void Board::unmakeMove() {
@@ -745,6 +744,7 @@ void Board::unmakeMove() {
                          node.data[B_SHORT_INDEX]);
   boardState[LAST_MOVED_INDEX] = node.data[LAST_MOVED_INDEX];
   boardState[LAST_CAPTURED_INDEX] = node.data[LAST_CAPTURED_INDEX];
+  boardState[HAS_REPEATED_INDEX] = node.data[HAS_REPEATED_INDEX];
 
   stack.pop();
 
@@ -757,7 +757,6 @@ void Board::unmakeMove() {
 
 void Board::_setCastlingPrivileges(Color color, int cLong, int cShort) {
   // If different: then xor in
-
   if (color == White) {
     if (cLong != boardState[W_LONG_INDEX]) {
       u64 hash = ZOBRIST_HASHES[W_LONG_HASH_POS];
@@ -853,7 +852,7 @@ std::string Board::fen() {
     result += "-";
   }
   result += " 0 ";                            // clock
-  result += std::to_string(stack.getIndex()); // num moves
+  result += std::to_string(stack.getIndex() + 1); // num moves
   return result;
 }
 
@@ -899,21 +898,23 @@ void Board::dump(bool debug) {
     for (Move &mv : produceUncheckMoves()) {
       std::cout << moveToAlgebraic(mv) << " ";
     }
+    std::cout << "\nIs repetition: ";
+    std::cout << yesorno(boardState[HAS_REPEATED_INDEX]); 
     std::cout << "\nMoves made: ";
     for (int i = 0; i < (int)stack.getIndex(); i++) {
       Move mv = stack.peekAt(i);
-      std::cout << moveToUCIAlgebraic(mv);
-      std::cout << "(" << (int)mv.getTypeCode() << ")"
-                << " ";
+      std::cout << moveToUCIAlgebraic(mv) << " ";
+      /*std::cout << "(" << (int)mv.getTypeCode() << ")"
+                << " ";*/
     }
 
-    std::cout << "\nState stack: ";
+    /*std::cout << "\nState stack: ";
     for (int i = 0; i < (int)stack.getIndex(); i++) {
       auto node = stack.peekNodeAt(i);
       std::cout << "(" << (int)node.data[LAST_MOVED_INDEX] << ",";
       std::cout << (int)node.data[LAST_CAPTURED_INDEX] << ") ";
       std::cout << (int)node.data[EN_PASSANT_INDEX] << ") ";
-    }
+    }*/
     std::cout << "\n" << fen();
     std::cout << "\n";
     std::cout << "\n";
@@ -1356,10 +1357,38 @@ bool Board::isCheckingMove(Move mv) {
   return isCheckingMove(mv, turn(), flipColor(turn()));
 }
 
+std::string Board::vectorize() {
+  std::string res = "";
+  for (PieceType p = 0; p < 12; p++) {
+    u64 x = 0;
+
+    std::array<int, 64> arr0;
+    int count;
+    bitscanAllInt(arr0, bitboard[p], count);
+    for (int i = 0; i < count; i++) {
+      x |= attackMap[arr0[i]];
+    }
+
+    int arr[64];
+    int i = 0;
+    while (i < 64) {
+        arr[i] = x & 1;
+        x = x >> 1;
+        i++;
+    }
+    for (int i = 7; i >= 0; i--) {
+        for (int k = 0; k < 8; k++) {
+            res += std::to_string(arr[i*8 + k]);
+        }
+        res += "\n";
+    }
+  }
+  return res;
+}
+
 bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
   // is King Color's king under attack after move is made by myColor
   bool result = false;
-  Color myColor = aColor;
   PieceType king = kingColor == White ? W_King : B_King;
 
   u64 src = mv.getSrc();
@@ -1367,6 +1396,8 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
   u64 destFormer = pieceAt(dest);
   PieceType mover = pieceAt(src);
   uint8_t moveType = mv.getTypeCode();
+
+  Color moveColor = turn(); //in theory this could be diff
 
   bitboard[mover] &= ~src;
 
@@ -1387,7 +1418,7 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
 
   // move to new location
   if (mv.isPromotion()) {
-    bitboard[mv.getPromotingPiece(myColor)] |= dest;
+    bitboard[mv.getPromotingPiece(moveColor)] |= dest;
   } else {
     bitboard[mover] |= dest;
   }
@@ -1414,7 +1445,7 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
 
   // ray out, knight out, king out, pawn out
   PieceType offset = 0;
-  if (myColor == Black) {
+  if (aColor == Black) {
     offset = 6;
   }
   PieceType eknight = W_Knight + offset;
@@ -1475,9 +1506,10 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
   bitboard[mover] |= src;
 
   // mask out dest
-  bitboard[mover] &= ~dest;
   if (mv.isPromotion()) {
-    bitboard[mv.getPromotingPiece(myColor)] &= ~dest;
+    bitboard[mv.getPromotingPiece(moveColor)] &= ~dest;
+  } else {
+    bitboard[mover] &= ~dest;
   }
 
   // restore dest
@@ -1593,6 +1625,7 @@ void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
   boardState[B_SHORT_INDEX] = 1;
   boardState[LAST_CAPTURED_INDEX] = Empty;
   boardState[LAST_MOVED_INDEX] = Empty;
+  boardState[HAS_REPEATED_INDEX] = 0;
 
   _switchTurn(turn);
   _setEpSquare(epIndex);

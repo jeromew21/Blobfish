@@ -64,6 +64,8 @@ class Board
 
     int see(Move mv);
 
+    std::string vectorize(); //stdout a string rep
+
     int mobility(Color color);
 
     //shortcut move gen
@@ -77,7 +79,6 @@ class Board
     Color turn();
     u64 zobrist();
 
-    bool isTerminal();
     bool isCheck();
 
     //costly calls
