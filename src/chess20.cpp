@@ -31,6 +31,8 @@ public:
     int depthLimit = INTMAX;
     int bestScore = INTMIN;
     bestMove = board.legalMoves()[0];
+    AI::clearKillerTable();
+
     for (depth = 0; depth < depthLimit; depth++) {
       int score;
       sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
@@ -49,6 +51,9 @@ public:
             // we don't know if the score is bad because we haven't found a
             // better move yet also we don't know if we NEED to pick a different
             // move because our PV move is refuted
+
+            // we chose to fallback if the score is refuted
+            // and take the best is it is beaten
           }
         } // else: same move as last layer
         break;
@@ -63,14 +68,9 @@ public:
         }
         sendCommand("info string mate plies " + std::to_string(plies));
         sendCommand("info score mate " + std::to_string(y));
-        if (depth == 0 || depth == 1) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
-          //the truth hurts
-          //delay a little to save gui the headache
-          break;
-          // only break on immediate mate... otherwise we might 
-          // have stopped too early
-        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        //do not overload the output
+        break;
       } else {               // it finishes at that layer
         bestMove = calcMove; // PV-move
         bestScore = score;
@@ -258,6 +258,7 @@ operation.*/
       Color color = board.turn();
       bool inf = false;
       int myTime = 0;
+      bool divFlag = true;
       for (int k = 1; k < (int)tokens.size(); k++) {
         auto token = tokens[k];
         if (token == "wtime") {
@@ -273,12 +274,16 @@ operation.*/
         } else if (token == "movetime") {
           k++;
           myTime = std::stoi(tokens[k]);
+          divFlag = false;
         } else if (token == "infinite") {
           myTime = 10000000; // close enough
           inf = true;
         }
       }
-      int t = ((double)myTime / 30.0);
+      int t = myTime;
+      if (divFlag) {
+        t = ((double)myTime / 30.0);
+      }
       startThinking(t, inf);
     } else if (tokens[0] == "stop") {
       /*
@@ -330,7 +335,7 @@ int main() {
         Board b;
         b.loadPosition(command.substr(7, command.size()));
         std::cout << b.vectorize();
-      } //vectorize a FEN tool
+      } // vectorize a FEN tool
       interface.recieveCommand(command);
     }
   }

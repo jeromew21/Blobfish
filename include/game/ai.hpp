@@ -131,6 +131,8 @@ void orderMoves(Board &board, std::vector<Move> &mvs, int ply);
 
 void init();
 
+void clearKillerTable();
+
 } // namespace AI
 
 #endif

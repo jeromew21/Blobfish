@@ -234,8 +234,8 @@ int Board::material(Color color) {
 void Board::_generatePseudoLegal() {
   // generate attack-defend sets
   for (int i = 0; i < 64; i++) {
-    attackMap[i] = (u64)0;
-    defendMap[i] = (u64)0;
+    attackMap[i] = 0;
+    defendMap[i] = 0;
   }
   u64 occ = occupancy();
 
@@ -437,7 +437,7 @@ std::string Board::moveToAlgebraic(Move mv) {
     for (Move &testMove : moves) {
       PieceType testmover = pieceAt(mv.getSrc());
 
-      if (mover == testmover && mv.getDest() == testmover) {
+      if (mover == testmover && pieceAt(mv.getDest()) == testmover) {
         // if col is different, add col
         if (u64ToCol(mv.getSrc()) != u64ToCol(testMove.getSrc())) {
           colDisambig = FILE_NAMES[u64ToCol(mv.getSrc())];
@@ -477,6 +477,8 @@ BoardStatus Board::status() {
   if (_statusDirty) {
     _statusDirty = false;
     // calculate
+
+    // TODO: Fix insuff material
     if (material(White) + material(Black) <= 350) {
       return BoardStatus::Draw;
     }
@@ -552,7 +554,7 @@ void Board::makeMove(Move mv) {
   // copy old data and move onto stack
   stack.push(boardState, mv, zobrist());
 
-  uint8_t moveType = mv.getTypeCode();
+  int moveType = mv.getTypeCode();
 
   boardState[LAST_MOVED_INDEX] = Empty;
   boardState[LAST_CAPTURED_INDEX] = Empty;
@@ -670,11 +672,12 @@ void Board::makeMove(Move mv) {
 
   if (!boardState[HAS_REPEATED_INDEX]) {
     for (int i = stack.getIndex() - 2; i >= 0; i -= 2) {
-      BoardStateNode& node = stack.peekNodeAt(i);
+      BoardStateNode &node = stack.peekNodeAt(i);
       if (node.hash == zobrist()) {
         boardState[HAS_REPEATED_INDEX] = 1;
       }
-      if (node.data[LAST_MOVED_INDEX] % 6 == 0 || node.data[LAST_CAPTURED_INDEX] != Empty) {
+      if (node.data[LAST_MOVED_INDEX] % 6 == 0 ||
+          node.data[LAST_CAPTURED_INDEX] != Empty) {
         break;
       }
     }
@@ -687,12 +690,12 @@ void Board::unmakeMove() {
 
   BoardStateNode &node = stack.peek();
   Move &mv = node.mv;
-  uint8_t moveType = mv.getTypeCode();
+  int moveType = mv.getTypeCode();
 
   if (moveType != MoveTypeCode::Null) {
     u64 src = mv.getSrc();
     u64 dest = mv.getDest();
-    uint8_t moveType = mv.getTypeCode();
+    int moveType = mv.getTypeCode();
     PieceType mover = boardState[LAST_MOVED_INDEX];
     PieceType destFormer = boardState[LAST_CAPTURED_INDEX];
 
@@ -855,7 +858,7 @@ std::string Board::fen() {
   } else {
     result += "-";
   }
-  result += " 0 ";                            // clock
+  result += " 0 ";                                // clock
   result += std::to_string(stack.getIndex() + 1); // num moves
   return result;
 }
@@ -903,7 +906,7 @@ void Board::dump(bool debug) {
       std::cout << moveToAlgebraic(mv) << " ";
     }
     std::cout << "\nIs repetition: ";
-    std::cout << yesorno(boardState[HAS_REPEATED_INDEX]); 
+    std::cout << yesorno(boardState[HAS_REPEATED_INDEX]);
     std::cout << "\nMoves made: ";
     for (int i = 0; i < (int)stack.getIndex(); i++) {
       Move mv = stack.peekAt(i);
@@ -1066,6 +1069,8 @@ Move Board::nextMove(LazyMovegen &movegen, std::vector<Move> &sbuffer,
     return Move(); // null ends the iterator;
   }
 }
+
+Move Board::lastMove() { return stack.peek().mv; }
 
 u64 Board::_knightAttacks(u64 index64) {
   u64 ray = 0;
@@ -1376,15 +1381,15 @@ std::string Board::vectorize() {
     int arr[64];
     int i = 0;
     while (i < 64) {
-        arr[i] = x & 1;
-        x = x >> 1;
-        i++;
+      arr[i] = x & 1;
+      x = x >> 1;
+      i++;
     }
     for (int i = 7; i >= 0; i--) {
-        for (int k = 0; k < 8; k++) {
-            res += std::to_string(arr[i*8 + k]);
-        }
-        res += "\n";
+      for (int k = 0; k < 8; k++) {
+        res += std::to_string(arr[i * 8 + k]);
+      }
+      res += "\n";
     }
   }
   return res;
@@ -1399,9 +1404,9 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
   u64 dest = mv.getDest();
   u64 destFormer = pieceAt(dest);
   PieceType mover = pieceAt(src);
-  uint8_t moveType = mv.getTypeCode();
+  int moveType = mv.getTypeCode();
 
-  Color moveColor = turn(); //in theory this could be diff
+  Color moveColor = turn(); // in theory this could be diff
 
   bitboard[mover] &= ~src;
 
@@ -1585,7 +1590,7 @@ void Board::loadPosition(std::string fen) {
   wshort = 0;
   blong = 0;
   bshort = 0;
-  for (u_int8_t k = 0; k < elems[2].size(); k++) {
+  for (int k = 0; k < (int)elems[2].size(); k++) {
     char ch = elems[2][k];
     if (ch == 'K') {
       wshort = 1;

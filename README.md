@@ -10,6 +10,8 @@ Current strength is unknown, likely around 2000
 6. Static exchange evaluation
 4. Late move reduction
 5. Null move pruning
+6. Killer heuristic
+7. Repetition detection
 
 # Todos (in order of priority)
 1. Improve hash table
@@ -18,10 +20,10 @@ Current strength is unknown, likely around 2000
 7. Move ordering concerns
 3. Create testing suite
 4. Search extensions and reductions
-3. Speed up and fix threefold repetition (significant bottleneck)
 4. Improve quiescience search (delta pruning, checks, etc)
 5. Add more pruning (null, etc)
 6. Complete implementation of UCI interface (pondering, etc)
+7. Aspiration windows??
 6. Resolve exit during search issues
 10. Experiment with fail-soft instead of fail hard
 9. Implement Scout/PVS on top of alpha-beta

@@ -7,6 +7,8 @@
 #include <game/move.hpp>
 
 struct LazyMovegen {
+  
+
   std::array<int, 64> srcList;
   int srcIndex;
   int numSrcs;
@@ -15,7 +17,6 @@ struct LazyMovegen {
   int currDestIndex;
   int numCurrDests;
   bool _hasNext;
-
 
   bool hasNext() { return _hasNext; }
 
@@ -42,7 +43,9 @@ struct LazyMovegen {
   }
 
   void next(std::array<u64, 64> &attackMap, int &srcout, int &destout) {
-    if (!hasNext()) { throw; }
+    if (!hasNext()) {
+      throw;
+    }
     srcout = srcList[srcIndex];
     destout = currDests[currDestIndex];
     currDestIndex += 1;
@@ -51,7 +54,7 @@ struct LazyMovegen {
       if (srcIndex == numSrcs) {
         _hasNext = false;
       } else {
-        //load new
+        // load new
         while (true) {
           if (srcIndex == numSrcs) {
             _hasNext = false;
@@ -76,6 +79,47 @@ struct BoardStateNode {
   Move mv;
 };
 
+struct CounterMoveTable {
+  std::array<std::array<Move, 64>, 64> arr[2];
+
+  void clear() {
+    for (int i = 0; i < 64; i++) {
+      for (int k = 0; k < 64; k++) {
+        arr[White][i][k] = Move();
+      }
+    }
+  }
+
+  bool contains(Move prev, Move mv, Color side) {
+    return arr[side][prev.getSrcIndex()][prev.getDestIndex()] == mv;
+  }
+
+  void insert(Color side, Move prev, Move counter) {
+    arr[side][prev.getSrcIndex()][prev.getDestIndex()] = counter;
+  }
+};
+
+struct HistoryTable {
+  std::array<std::array<int, 64>, 64> arr[2]; // to-from cutoff count
+
+  void clear() {
+    for (int i = 0; i < 64; i++) {
+      for (int k = 0; k < 64; k++) {
+        arr[White][i][k] = 0;
+        arr[Black][i][k] = 0;
+      }
+    }
+  }
+
+  int get(Move mv, Color side) {
+    return arr[side][mv.getSrcIndex()][mv.getDestIndex()];
+  }
+
+  void insert(Move mv, Color side, int depth) {
+    arr[side][mv.getSrcIndex()][mv.getDestIndex()] += depth * 2;
+  }
+};
+
 struct KillerTable {
   std::array<std::array<Move, 2>, 32> arr;
 
@@ -90,7 +134,7 @@ struct KillerTable {
     return arr[ply][0] == mv || arr[ply][1] == mv;
   }
 
-  void push(Move mv, int ply) {
+  void insert(Move mv, int ply) {
     for (int i = 0; i < 2; i++) {
       if (arr[ply][i].isNull()) {
         arr[ply][i] = mv;
@@ -99,7 +143,7 @@ struct KillerTable {
         return;
       }
     }
-    //otherwise replace
+    // otherwise replace
     arr[ply][0] = arr[ply][1];
     arr[ply][1] = mv;
   }
@@ -125,7 +169,7 @@ public:
 
   Move peekAt(int index) { return _data[index].mv; }
 
-  BoardStateNode& peekNodeAt(int index) { return _data[index]; }
+  BoardStateNode &peekNodeAt(int index) { return _data[index]; }
 
   void clear() {
     _index = 0;

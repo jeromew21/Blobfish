@@ -3,6 +3,8 @@
 TranspositionTable table;
 MiniTable pvTable;
 KillerTable kTable;
+HistoryTable hTable;
+CounterMoveTable cTable;
 
 u64 BACK_RANK[2];
 
@@ -17,17 +19,22 @@ void AI::init() {
 
 int AI::materialEvaluation(Board &board) { return board.material(); }
 
-int AI::evaluation(Board &board) { // positive good for white, negative for
-                                   // black
-  BoardStatus status = board.status();
-  if (board.boardState[HAS_REPEATED_INDEX] || (status == BoardStatus::Stalemate || status == BoardStatus::Draw)) {
+int AI::evaluation(Board &board) {
+  if (board.boardState[HAS_REPEATED_INDEX])
     return 0;
-  }
+
+  BoardStatus status = board.status();
+  if (status == BoardStatus::Stalemate || status == BoardStatus::Draw)
+    return 0;
+  if (status == BoardStatus::WhiteWin)
+    return INTMAX;
+  if (status == BoardStatus::BlackWin)
+    return INTMIN;
 
   int score = materialEvaluation(board);
   for (int i = 0; i < (int)board.stack.getIndex(); i++) {
     Move mv = board.stack.peekAt(i);
-    uint8_t mvtyp = mv.getTypeCode();
+    int mvtyp = mv.getTypeCode();
     if (mvtyp == MoveTypeCode::CastleLong ||
         mvtyp == MoveTypeCode::CastleShort) {
       if (i % 2 == 0) {
@@ -37,27 +44,12 @@ int AI::evaluation(Board &board) { // positive good for white, negative for
       }
     }
   }
-  u64 minors = board.bitboard[W_Bishop] | board.bitboard[W_Knight];
-  int backrank = hadd(minors & BACK_RANK[White]); // 0-8
-  score -= backrank * 15;
-
-  minors = board.bitboard[B_Bishop] | board.bitboard[B_Knight];
-  backrank = hadd(minors & BACK_RANK[Black]); // 0-8
-  score += backrank * 15;
 
   // mobility
-  // naive solution: make a null move
-  int mcwhite = board.mobility(White);
-  int mcblack = board.mobility(Black);
-  score += mcwhite;
-  score -= mcblack;
+  int mcwhite = board.mobility(White) - 31;
+  int mcblack = board.mobility(Black) - 31;
+  score += mcwhite - mcblack;
 
-  if (status == BoardStatus::WhiteWin) {
-    return INTMAX;
-  }
-  if (status == BoardStatus::BlackWin) {
-    return INTMIN;
-  }
   return score;
 }
 
@@ -69,13 +61,12 @@ int AI::flippedEval(Board &board) {
   }
 }
 
+void AI::clearKillerTable() { kTable.clear(); }
+
 Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
                   int &outscore, Move &prevPv, int &count,
                   std::chrono::_V2::system_clock::time_point start) {
   // IID
-
-  kTable.clear();
-
   TableNode node(board, depth, NodeType::PV);
 
   auto moves = board.legalMoves();
@@ -192,7 +183,10 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
 
   count++;
 
+  if (board.boardState[HAS_REPEATED_INDEX])
+    return 0;
   int baseline = AI::flippedEval(board);
+
   BoardStatus status = board.status();
 
   if (status != BoardStatus::Playing || plyCount >= depthLimit) {
@@ -222,23 +216,30 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
 
   bool isCheck = board.isCheck();
 
-  auto moves = board.legalMoves();
 
   int matSwingUpperBound = 1000;
-  for (Move &mv : moves) {
-    if (mv.isPromotion()) {
-      matSwingUpperBound += 1000;
-      break;
-    }
-  }
+  
+  /*
+  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
+  std::vector<Move> sbuffer;
+  bool hasGenSpecial = false;
+  Move mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
 
-  if (baseline + matSwingUpperBound < alpha) {
-    return alpha;
-  }
+  while (mv.notNull()) {
+    */
+  auto moves = board.legalMoves();
 
   while (moves.size() > 0) {
     Move mv = moves.back();
     moves.pop_back();
+    if (mv.isPromotion()) {
+      matSwingUpperBound += 1000;
+      break;
+    }
+
+    if (baseline + matSwingUpperBound < alpha) {
+      return alpha;
+    }
 
     if (stop) {
       return INTMIN; // mitigate horizon effect, otherwise we could be in big
@@ -258,22 +259,18 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
         int score = -1 * quiescence(board, plyCount + 1, -1 * beta, -1 * alpha,
                                     stop, count, depthLimit);
         board.unmakeMove();
-        if (score >= beta)
-          return beta;
-        if (score > alpha)
-          alpha = score;
+        if (score >= beta) return beta;
+        if (score > alpha) alpha = score;
       }
-    } else if (isCheck || board.isCheckingMove(mv)) {
+    } else if (mv.isPromotion() || (isCheck || board.isCheckingMove(mv))) {
       board.makeMove(mv);
       int score = -1 * quiescence(board, plyCount + 1, -1 * beta, -1 * alpha,
                                   stop, count, 10);
       board.unmakeMove();
-      if (score >= beta)
-        return beta;
-      if (score > alpha)
-        alpha = score;
+      if (score >= beta) return beta;
+      if (score > alpha) alpha = score;
     }
-    /// mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
+    //mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
   }
   return alpha;
 }
@@ -282,7 +279,7 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs, int ply) {
   // put see > 0 captures at front first
   std::vector<Move> winningCaptures;
   std::vector<Move> equalCaptures;
-  std::vector<Move> killer;
+  std::vector<Move> heuristics;
   std::vector<Move> other;
 
   u64 piecemap = board.occupancy();
@@ -299,7 +296,10 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs, int ply) {
         other.push_back(mv);
       }
     } else if (kTable.contains(mv, ply)) {
-      killer.push_back(mv);
+      // two plies also???
+      heuristics.push_back(mv);
+    } else if (cTable.contains(board.lastMove(), mv, board.turn())) {
+      heuristics.push_back(mv);
     } else {
       other.push_back(mv);
     }
@@ -307,7 +307,7 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs, int ply) {
   mvs.clear();
   mvs.assign(other.begin(), other.end());
   mvs.insert(mvs.end(), equalCaptures.begin(), equalCaptures.end());
-  mvs.insert(mvs.end(), killer.begin(), killer.end());
+  mvs.insert(mvs.end(), heuristics.begin(), heuristics.end());
   mvs.insert(mvs.end(), winningCaptures.begin(), winningCaptures.end());
 }
 
@@ -316,6 +316,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   count++;
 
+  // check terminal
+  if (board.boardState[HAS_REPEATED_INDEX])
+    return 0;
   BoardStatus status = board.status();
 
   if (status != BoardStatus::Playing) {
@@ -365,9 +368,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   // NULL MOVE PRUNE
   // MAKE SURE NOT IN CHECK??
   if (nullmove && !nodeIsCheck) {
+    int r = 2;
     Move mv = Move::NullMove();
     board.makeMove(mv);
-    int score = -1 * AI::alphaBetaNega(board, depth - 1, plyCount + 1,
+    int score = -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1,
                                        -1 * beta, -1 * alpha, stop, count);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
@@ -398,7 +402,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   /*
   LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
   std::vector<Move> sbuffer;
-  bool hasGenSpecial;
+  bool hasGenSpecial = false;
   Move mv = board.nextMove(movegen, sbuffer, hasGenSpecial);
 
   std::vector<Move> posCaptures;
@@ -411,7 +415,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   // put hash move in front
   if (foundHashMove) {
-    for (int i = 0; i < (int) moves.size(); i++) {
+    for (int i = 0; i < (int)moves.size(); i++) {
       if (moves[i] == pvMove) {
         moves.erase(moves.begin() + i);
         moves.push_back(pvMove);
@@ -461,10 +465,13 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       node.nodeType = NodeType::Cut;
       node.bestMove = fmove;
       table.insert(node, beta);
-      // found a killer
-      if (fmove.getDest() & occ) {
-        kTable.push(fmove, plyCount);
+
+      if (fmove.getDest() & ~occ) {
+        kTable.insert(fmove, plyCount);
+        cTable.insert(board.turn(), board.lastMove(), fmove);
       }
+
+      hTable.insert(fmove, board.turn(), depth);
 
       return beta; // fail hard
     }

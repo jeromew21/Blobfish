@@ -1,21 +1,21 @@
 #ifndef GLOB_HPP
 #define GLOB_HPP
 
-#include <iostream>
-#include <string>
-#include <vector>
 #include <array>
+#include <iostream>
+#include <iterator>
 #include <random>
 #include <sstream>
-#include <iterator>
+#include <string>
+#include <vector>
 
-#define PieceType u_int8_t
+#define PieceType int
 #define Color int
 
 #define u64 u_int64_t
 
 const int INTMIN = -10000000; // minimum value
-const int INTMAX =  10000000;
+const int INTMAX = 10000000;
 
 const int BOARD_STATE_ENTROPY = 9;
 
@@ -33,18 +33,20 @@ const Color White = 0;
 const Color Black = 1;
 const Color Neutral = -1;
 
-
 enum class BoardStatus {
-    WhiteWin = 1, BlackWin = -1,
-    Draw = 0, Playing = 2, Stalemate = 3
+  WhiteWin = 1,
+  BlackWin = -1,
+  Draw = 0,
+  Playing = 2,
+  Stalemate = 3
 };
 
 const std::string RANK_NAMES[] = {"1", "2", "3", "4", "5", "6", "7", "8"};
 const std::string FILE_NAMES[] = {"a", "b", "c", "d", "e", "f", "g", "h"};
 
-void sendCommand(const std::string& cmd);
+void sendCommand(const std::string &cmd);
 
-void debugLog(const std::string& f);
+void debugLog(const std::string &f);
 std::string yesorno(bool b);
 std::string statusToString(BoardStatus bs, bool concise);
 std::string colorToString(Color c);
@@ -56,18 +58,16 @@ int indexFromSquareName(std::string alg);
 
 u64 u64FromPair(int r, int c);
 
-//LSB (rightmost, uppermost)
-inline int bitscanForward(u64 x) { //checked, should work
-    return __builtin_ffsll(x) - 1;
+// LSB (rightmost, uppermost)
+inline int bitscanForward(u64 x) { // checked, should work
+  return __builtin_ffsll(x) - 1;
 }
 
-//MSB (leftmost, uppermost)
-inline int bitscanReverse(u64 x) {
-    return 63 - __builtin_clzll(x);
-}
+// MSB (leftmost, uppermost)
+inline int bitscanReverse(u64 x) { return 63 - __builtin_clzll(x); }
 
-inline u64 u64FromIndex(int i) { //fixed, should work
-    return ((u64) 1) << i;
+inline u64 u64FromIndex(int i) { // fixed, should work
+  return (1UL) << i;
 }
 
 int u64ToRow(u64 space);
@@ -76,9 +76,7 @@ int u64ToCol(u64 space);
 int intToRow(int s);
 int intToCol(int s);
 
-inline int u64ToIndex(u64 space) {
-    return bitscanForward(space);
-}
+inline int u64ToIndex(u64 space) { return bitscanForward(space); }
 
 void dump64(u64 x);
 
@@ -89,8 +87,8 @@ int hadd(u64 x);
 int max(int i1, int i2);
 int min(int i1, int i2);
 
-void bitscanAll(std::array<u64, 64>& arr, u64 x, int &outsize); //hotspot
-void bitscanAllInt(std::array<int, 64>& arr, u64 x, int &outsize); //hotspot
+void bitscanAll(std::array<u64, 64> &arr, u64 x, int &outsize);    // hotspot
+void bitscanAllInt(std::array<int, 64> &arr, u64 x, int &outsize); // hotspot
 
 int rand100();
 void srand100(int seed);
