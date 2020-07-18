@@ -6,8 +6,29 @@
 
 #include <game/move.hpp>
 
+struct PieceSquareTable {
+  std::array<float, 64> arr;
+
+  float at(int index) {
+    return arr[index];
+  }
+
+  void dump() {
+    for (int row = 7; row >= 0; row--) {
+      for (int col = 0; col < 8; col++) {
+        std::cout << (int) (10.0*arr[intFromPair(row, col)]) << "|";
+      }
+      std::cout << "\n";
+    }
+    std::cout << "\n";
+  }
+
+  void set(int index, float score) {
+    arr[index] = score;
+  }
+};
+
 struct LazyMovegen {
-  
 
   std::array<int, 64> srcList;
   int srcIndex;

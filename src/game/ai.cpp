@@ -19,6 +19,10 @@ void AI::init() {
 
 int AI::materialEvaluation(Board &board) { return board.material(); }
 
+int AI::kingSafety(Board &board, Color c) {
+  //look at squares around king
+}
+
 int AI::evaluation(Board &board) {
   if (board.boardState[HAS_REPEATED_INDEX])
     return 0;
@@ -42,6 +46,7 @@ int AI::evaluation(Board &board) {
       } else {
         score -= 30;
       }
+      break;
     }
   }
 
@@ -49,6 +54,27 @@ int AI::evaluation(Board &board) {
   int mcwhite = board.mobility(White) - 31;
   int mcblack = board.mobility(Black) - 31;
   score += mcwhite - mcblack;
+
+  //Piece-squares
+  //Interpolate between 32 pieces and 2 pieces
+  float pieceCount = ((float)hadd(board.occupancy())) / 32.0f;
+  float earlyWeight = pieceCount;
+  float lateWeight = 1.0f-pieceCount;
+  float pscoreEarly = 0.0f;
+  float pscoreLate = 0.0f;
+  for (PieceType p = 0; p < 6; p++) {
+    pscoreEarly += board.pieceScoreEarlyGame[p];
+    pscoreLate += board.pieceScoreLateGame[p];
+  }
+  score += (int) (pscoreEarly*earlyWeight + pscoreLate*lateWeight);
+
+  pscoreEarly = 0.0f;
+  pscoreLate = 0.0f;
+  for (PieceType p = 6; p < 12; p++) {
+    pscoreEarly += board.pieceScoreEarlyGame[p];
+    pscoreLate += board.pieceScoreLateGame[p];
+  }
+  score -= (int) (pscoreEarly*earlyWeight + pscoreLate*lateWeight);
 
   return score;
 }
@@ -179,17 +205,15 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
 TranspositionTable &AI::getTable() { return table; }
 
 int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
-                   std::atomic<bool> &stop, int &count, int depthLimit) {
+                   std::atomic<bool> &stop, int &count, int depthLimit, int kickoff) {
 
   count++;
 
-  if (board.boardState[HAS_REPEATED_INDEX])
-    return 0;
   int baseline = AI::flippedEval(board);
 
   BoardStatus status = board.status();
 
-  if (status != BoardStatus::Playing || plyCount >= depthLimit) {
+  if (status != BoardStatus::Playing || kickoff >= depthLimit) {
     if (status == BoardStatus::BlackWin || status == BoardStatus::WhiteWin) {
       // we got mated
       baseline += plyCount;
@@ -243,7 +267,7 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
         if (see >= 0) {
           board.makeMove(mv);
           int score = -1 * quiescence(board, plyCount + 1, -1 * beta,
-                                      -1 * alpha, stop, count, depthLimit);
+                                      -1 * alpha, stop, count, depthLimit, kickoff+1);
           board.unmakeMove();
           if (score >= beta)
             return beta;
@@ -254,7 +278,7 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
     } else if (mv.isPromotion() || (isCheck || board.isCheckingMove(mv))) {
       board.makeMove(mv);
       int score = -1 * quiescence(board, plyCount + 1, -1 * beta, -1 * alpha,
-                                  stop, count, 10);
+                                  stop, count, 10, kickoff+1);
       board.unmakeMove();
       if (score >= beta)
         return beta;
@@ -306,10 +330,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
                       int beta, std::atomic<bool> &stop, int &count) {
   count++;
 
-  // check terminal
-  if (board.boardState[HAS_REPEATED_INDEX])
-    return 0;
-
   BoardStatus status = board.status();
   if (status != BoardStatus::Playing) {
     int score = AI::flippedEval(board); // store?
@@ -322,7 +342,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   if (depth <= 0) {
     int score =
-        quiescence(board, plyCount + 1, alpha, beta, stop, count, INTMAX);
+        quiescence(board, plyCount + 1, alpha, beta, stop, count, INTMAX, 0);
     return score;
   }
 

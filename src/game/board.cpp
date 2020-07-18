@@ -24,6 +24,8 @@ u64 CASTLE_SHORT_KING_DEST[2];
 u64 CASTLE_LONG_ROOK_DEST[2];
 u64 CASTLE_SHORT_ROOK_DEST[2];
 
+PieceSquareTable PIECE_SQUARE_TABLE[12][2]; //one for earlygame, one for endgame
+
 u64 ZOBRIST_HASHES[781];
 
 int SIDE_TO_MOVE_HASH_POS = 64 * 12;
@@ -217,6 +219,59 @@ void populateMoveCache() {
     }
   }
   debugLog("Initialized move cache");
+
+  //init piece squares
+  for (int row = 0; row < 8; row++) {
+    for (int col = 0; col < 8; col++) {
+      int index = intFromPair(row, col);
+      //weight pawns lower and kings higher
+      float rr = row/14.0;
+      float r7 = ((float)(7-row))/14.0;
+      PIECE_SQUARE_TABLE[W_Pawn][0].set(index, rr);
+      PIECE_SQUARE_TABLE[W_Pawn][1].set(index, rr);
+      PIECE_SQUARE_TABLE[B_Pawn][0].set(index, r7);
+      PIECE_SQUARE_TABLE[B_Pawn][1].set(index, r7);
+
+      r7 = 7 - distToClosestCorner(row, col);
+      rr = distToClosestCorner(row, col);
+      r7 /= 7.0;
+      rr /= 7.0;
+      PIECE_SQUARE_TABLE[W_King][0].set(index, r7);
+      PIECE_SQUARE_TABLE[B_King][0].set(index, r7);
+      PIECE_SQUARE_TABLE[W_King][1].set(index, rr);
+      PIECE_SQUARE_TABLE[B_King][1].set(index, rr);
+      
+      float nmoves = hadd(KNIGHT_MOVE_CACHE[index]);
+      nmoves /= 8.0;
+      PIECE_SQUARE_TABLE[W_Knight][0].set(index, nmoves);
+      PIECE_SQUARE_TABLE[W_Knight][1].set(index, nmoves);
+      PIECE_SQUARE_TABLE[B_Knight][0].set(index, nmoves);
+      PIECE_SQUARE_TABLE[B_Knight][1].set(index, nmoves);
+
+      float bmoves = 0;
+      float rmoves = 0;
+      for (int d = 0; d < 4; d++) {
+        bmoves += hadd(BISHOP_MOVE_CACHE[index][d]);
+        rmoves += hadd(ROOK_MOVE_CACHE[index][d]);
+      }
+      float qmoves = bmoves+rmoves;
+      bmoves /= 13.0;
+      rmoves /= 14.0;
+      qmoves /= 27.0;
+      PIECE_SQUARE_TABLE[W_Bishop][0].set(index, bmoves);
+      PIECE_SQUARE_TABLE[W_Bishop][1].set(index, bmoves);
+      PIECE_SQUARE_TABLE[B_Bishop][0].set(index, bmoves);
+      PIECE_SQUARE_TABLE[B_Bishop][1].set(index, bmoves);
+      PIECE_SQUARE_TABLE[W_Rook][0].set(index, rmoves);
+      PIECE_SQUARE_TABLE[W_Rook][1].set(index, rmoves);
+      PIECE_SQUARE_TABLE[B_Rook][0].set(index, rmoves);
+      PIECE_SQUARE_TABLE[B_Rook][1].set(index, rmoves);
+      PIECE_SQUARE_TABLE[W_Queen][0].set(index, qmoves);
+      PIECE_SQUARE_TABLE[W_Queen][1].set(index, qmoves);
+      PIECE_SQUARE_TABLE[B_Queen][0].set(index, qmoves);
+      PIECE_SQUARE_TABLE[B_Queen][1].set(index, qmoves);
+    }
+  }
 }
 
 int Board::material() { return material(White) - material(Black); }
@@ -476,13 +531,25 @@ std::string Board::moveToAlgebraic(Move mv) {
 }
 
 BoardStatus Board::status() {
-  if (_statusDirty) {
-    _statusDirty = false;
+  if (_status == BoardStatus::NotCalculated) {
+    if (boardState[HAS_REPEATED_INDEX]) {
+      _status = BoardStatus::Draw;
+      return _status;
+    }
     // calculate
 
     // TODO: Fix insuff material
-    if (material(White) + material(Black) <= 350) {
-      return BoardStatus::Draw;
+    if (hadd(bitboard[W_Pawn] | bitboard[B_Pawn] | bitboard[B_Queen] |
+              bitboard[W_Queen] | bitboard[W_Rook] | bitboard[B_Rook]) == 0) {
+      // if either side has at least two minor pieces and one bishop
+      // not a draw
+      if (!((hadd(bitboard[W_Bishop] | bitboard[W_Knight]) >= 2 &&
+             hadd(bitboard[W_Bishop]) > 0) ||
+            (hadd(bitboard[B_Bishop] | bitboard[B_Knight]) >= 2 &&
+             hadd(bitboard[B_Bishop]) > 0))) {
+        _status = BoardStatus::Draw;
+        return _status;
+      }
     }
 
     auto movelist = produceUncheckMoves();
@@ -520,8 +587,11 @@ void Board::_removePiece(PieceType p, u64 location) {
   // location may be empty; if so, do nothing
   // XOR out hash
   if (location & bitboard[p]) {
-    u64 hash = ZOBRIST_HASHES[64 * p + u64ToIndex(location)];
+    int ind = u64ToIndex(location);
+    u64 hash = ZOBRIST_HASHES[64 * p + ind];
     _zobristHash ^= hash;
+    pieceScoreEarlyGame[p] -= PIECE_SQUARE_TABLE[p][0].at(ind);
+    pieceScoreLateGame[p] -= PIECE_SQUARE_TABLE[p][1].at(ind);
   } else {
     std::cout << pieceToString(p) << "\n";
     dump64(location);
@@ -544,14 +614,17 @@ void Board::_addPiece(PieceType p, u64 location) {
     debugLog("bad pieceadd");
     throw;
   } else {
-    u64 hash = ZOBRIST_HASHES[64 * p + u64ToIndex(location)];
+    int ind = u64ToIndex(location);
+    u64 hash = ZOBRIST_HASHES[64 * p + ind];
     _zobristHash ^= hash;
+    pieceScoreEarlyGame[p] += PIECE_SQUARE_TABLE[p][0].at(ind);
+    pieceScoreLateGame[p] += PIECE_SQUARE_TABLE[p][1].at(ind);
   }
   bitboard[p] |= location;
 }
 
 void Board::makeMove(Move mv) {
-  _statusDirty = true;
+  _status = BoardStatus::NotCalculated;
 
   // copy old data and move onto stack
   stack.push(boardState, mv, zobrist());
@@ -567,10 +640,6 @@ void Board::makeMove(Move mv) {
     u64 dest = mv.getDest();
     PieceType mover = pieceAt(src);
     PieceType destFormer = pieceAt(dest);
-
-    if (mover % 6 == 0 || destFormer != Empty) {
-      boardState[HAS_REPEATED_INDEX] = 0; // reset rep tracker
-    }
 
     boardState[LAST_MOVED_INDEX] = mover;
 
@@ -673,21 +742,24 @@ void Board::makeMove(Move mv) {
   _generatePseudoLegal();
 
   if (!boardState[HAS_REPEATED_INDEX]) {
+    int counter = 0;
     for (int i = stack.getIndex() - 2; i >= 0; i -= 2) {
       BoardStateNode &node = stack.peekNodeAt(i);
       if (node.hash == zobrist()) {
-        boardState[HAS_REPEATED_INDEX] = 1;
+        counter++;
       }
       if (node.data[LAST_MOVED_INDEX] % 6 == 0 ||
           node.data[LAST_CAPTURED_INDEX] != Empty) {
         break;
       }
     }
+    if (counter >= 2) {
+      boardState[HAS_REPEATED_INDEX] = 1;
+    }
   }
 }
 
 void Board::unmakeMove() {
-  _statusDirty = true;
   // state changer
 
   BoardStateNode &node = stack.peek();
@@ -754,6 +826,7 @@ void Board::unmakeMove() {
   boardState[LAST_MOVED_INDEX] = node.data[LAST_MOVED_INDEX];
   boardState[LAST_CAPTURED_INDEX] = node.data[LAST_CAPTURED_INDEX];
   boardState[HAS_REPEATED_INDEX] = node.data[HAS_REPEATED_INDEX];
+  _status = BoardStatus::NotCalculated;
 
   stack.pop();
 
@@ -915,6 +988,10 @@ void Board::dump(bool debug) {
       std::cout << moveToUCIAlgebraic(mv) << " ";
       /*std::cout << "(" << (int)mv.getTypeCode() << ")"
                 << " ";*/
+    }
+    std::cout << "\nPiece scores:";
+    for (PieceType p = 0; p < 12; p++) {
+      std::cout << pieceToString(p) << ": " << pieceScoreEarlyGame[p] << "\n";
     }
 
     /*std::cout << "\nState stack: ";
@@ -1622,8 +1699,10 @@ void Board::loadPosition(std::string fen) {
 void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
                          int wlong, int wshort, int blong, int bshort) {
   // set board, bitboards
-  for (int i = 0; i < 12; i++) {
+  for (PieceType i = 0; i < 12; i++) {
     bitboard[i] = 0;
+    pieceScoreEarlyGame[i] = 0; 
+    pieceScoreLateGame[i] = 0; 
   }
   _zobristHash = 0; // ZERO OUT
 
@@ -1654,7 +1733,7 @@ void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
 
   _generatePseudoLegal();
 
-  _statusDirty = true;
+  _status = BoardStatus::NotCalculated;
 }
 
 void Board::reset() {

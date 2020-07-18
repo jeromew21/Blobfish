@@ -38,7 +38,8 @@ enum class BoardStatus {
   BlackWin = -1,
   Draw = 0,
   Playing = 2,
-  Stalemate = 3
+  Stalemate = 3,
+  NotCalculated = 4,
 };
 
 const std::string RANK_NAMES[] = {"1", "2", "3", "4", "5", "6", "7", "8"};
@@ -57,6 +58,9 @@ std::string squareName(int square);
 int indexFromSquareName(std::string alg);
 
 u64 u64FromPair(int r, int c);
+int intFromPair(int r, int c);
+
+int distToClosestCorner(int r, int c);
 
 // LSB (rightmost, uppermost)
 inline int bitscanForward(u64 x) { // checked, should work

@@ -1,6 +1,11 @@
 # Chess
 
-Current strength is unknown, likely around 2000
+
+# Rating progress
+
+Tested in one-second games versus Stockfish with set ELO
+
+7/17/2020: ~1950
 
 # Running list of features
 1. UCI compatability (only partially implemented but tested with Lichess-Bot, and Cutechess)
@@ -11,7 +16,8 @@ Current strength is unknown, likely around 2000
 4. Late move reduction
 5. Null move pruning
 6. Killer heuristic
-7. Repetition detection
+7. Countermove heuristic
+7. Threefold Repetition detection
 
 # Todos (in order of priority)
 1. Improve hash table

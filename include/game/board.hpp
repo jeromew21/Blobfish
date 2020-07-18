@@ -11,7 +11,6 @@ std::string moveToUCIAlgebraic(Move mv);
 
 class Board {
 private:
-  bool _statusDirty;
   BoardStatus _status;
 
   std::vector<PseudoLegalData> _pseudoStack;
@@ -49,6 +48,9 @@ private:
 public:
   BoardStateStack stack;
   u64 bitboard[12];
+
+  float pieceScoreEarlyGame[12];
+  float pieceScoreLateGame[12];
 
   std::array<u64, 64> attackMap;
   std::array<u64, 64> defendMap;

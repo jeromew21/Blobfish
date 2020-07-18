@@ -122,7 +122,7 @@ Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore,
               std::chrono::_V2::system_clock::time_point start);
 
 int quiescence(Board &board, int plyCount, int alpha, int beta,
-               std::atomic<bool> &stop, int &count, int depthLimit);
+               std::atomic<bool> &stop, int &count, int depthLimit, int kickoff);
 
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
                   std::atomic<bool> &stop, int &count);
@@ -132,6 +132,8 @@ void orderMoves(Board &board, std::vector<Move> &mvs, int ply);
 void init();
 
 void clearKillerTable();
+
+int kingSafety(Board &board, Color c);
 
 } // namespace AI
 

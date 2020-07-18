@@ -95,17 +95,21 @@ public:
 
   void delayStop(int msecs) {
     auto start = std::chrono::high_resolution_clock::now();
+    int i = 0;
     while (true) {
-      auto stop = std::chrono::high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-          stop - start); // or milliseconds
-      int time = duration.count();
-      if (time > msecs) {
-        break;
+      if (i % 1000 == 0) {
+        auto stop = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            stop - start); // or milliseconds
+        int time = duration.count();
+        if (time > msecs) {
+          break;
+        }
       }
       if (_stopKiller) {
         return;
       }
+      i++;
     }
     _notThinking = true; // stop the other thread
   }
