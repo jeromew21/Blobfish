@@ -1070,7 +1070,13 @@ Move Board::nextMove(LazyMovegen &movegen, std::vector<Move> &sbuffer,
   }
 }
 
-Move Board::lastMove() { return stack.peek().mv; }
+Move Board::lastMove() {
+  if (stack.canPop()) {
+    return stack.peek().mv;
+  } else {
+    return Move();
+  }
+}
 
 u64 Board::_knightAttacks(u64 index64) {
   u64 ray = 0;
