@@ -46,13 +46,9 @@ struct Move {
     return tc >= MoveTypeCode::KPromotion && tc <= MoveTypeCode::QPromotion;
   }
 
-  inline int getSrcIndex() {
-    return data >> 10;
-  }
+  inline int getSrcIndex() { return data >> 10; }
 
-  inline int getDestIndex() {
-    return (data >> 4) & 63;
-  }
+  inline int getDestIndex() { return (data >> 4) & 63; }
 
   inline u64 getSrc() {
     int s = data >> 10;
@@ -68,9 +64,11 @@ struct Move {
     data = (src0 << 10) | (dest0 << 4) | (typeCode & 15);
   }
 
-  Move() { data = 0; }
+  Move() : data(0) {}
 
   bool operator==(const Move &other) const { return data == other.data; }
+  
+  bool operator!=(const Move &other) const { return data != other.data; }
 };
 
 #endif

@@ -111,7 +111,7 @@ public:
   std::string moveToExtAlgebraic(Move mv);
   std::string moveToAlgebraic(Move mv);
 
-  Board() { reset(); }
+  Board();
 };
 
 #endif

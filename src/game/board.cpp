@@ -363,6 +363,8 @@ PieceType Board::pieceAt(u64 space, Color c) {
   return Empty;
 }
 
+Board::Board() { reset(); }
+
 PieceType Board::pieceAt(u64 space) {
   // temporary solution
   for (PieceType i = 0; i < Empty; i++) {
