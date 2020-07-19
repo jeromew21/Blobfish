@@ -17,10 +17,33 @@ void AI::init() {
                      u64FromIndex(62) | u64FromIndex(63);
 }
 
+void AI::reset() {
+  kTable.clear();
+  hTable.clear();
+  cTable.clear();
+}
+
 int AI::materialEvaluation(Board &board) { return board.material(); }
 
-int AI::kingSafety(Board &board, Color c) {
-  //look at squares around king
+float AI::kingSafety(Board &board, Color c) { return 0; }
+
+int AI::mobility(Board &board, Color c) { // Minor piece and king mobility
+  int result = 0;
+  u64 friendlies = board.occupancy(c);
+  u64 pieces = c == White
+                   ? board.bitboard[W_Knight] | board.bitboard[W_Bishop] |
+                         board.bitboard[W_Rook]
+                   : board.bitboard[B_Knight] | board.bitboard[B_Bishop] |
+                         board.bitboard[B_Rook];
+  std::array<u64, 64> arr;
+  int count;
+
+  bitscanAll(arr, pieces, count);
+  for (int i = 0; i < count; i++) {
+    result += hadd(board.attackMap[u64ToIndex(arr[i])] & ~friendlies);
+  }
+
+  return result; // todo fix
 }
 
 int AI::evaluation(Board &board) {
@@ -36,37 +59,24 @@ int AI::evaluation(Board &board) {
     return INTMIN;
 
   int score = materialEvaluation(board);
-  for (int i = 0; i < (int)board.stack.getIndex(); i++) {
-    Move mv = board.stack.peekAt(i);
-    int mvtyp = mv.getTypeCode();
-    if (mvtyp == MoveTypeCode::CastleLong ||
-        mvtyp == MoveTypeCode::CastleShort) {
-      if (i % 2 == 0) {
-        score += 30; // castling is worth 30 cp
-      } else {
-        score -= 30;
-      }
-      break;
-    }
-  }
 
   // mobility
-  int mcwhite = board.mobility(White) - 31;
-  int mcblack = board.mobility(Black) - 31;
+  int mcwhite = mobility(board, White) - 31;
+  int mcblack = mobility(board, Black) - 31;
   score += mcwhite - mcblack;
 
-  //Piece-squares
-  //Interpolate between 32 pieces and 2 pieces
+  // Piece-squares
+  // Interpolate between 32 pieces and 2 pieces
   float pieceCount = ((float)hadd(board.occupancy())) / 32.0f;
   float earlyWeight = pieceCount;
-  float lateWeight = 1.0f-pieceCount;
+  float lateWeight = 1.0f - pieceCount;
   float pscoreEarly = 0.0f;
   float pscoreLate = 0.0f;
   for (PieceType p = 0; p < 6; p++) {
     pscoreEarly += board.pieceScoreEarlyGame[p];
     pscoreLate += board.pieceScoreLateGame[p];
   }
-  score += (int) (pscoreEarly*earlyWeight + pscoreLate*lateWeight);
+  score += (int)(pscoreEarly * earlyWeight + pscoreLate * lateWeight);
 
   pscoreEarly = 0.0f;
   pscoreLate = 0.0f;
@@ -74,7 +84,10 @@ int AI::evaluation(Board &board) {
     pscoreEarly += board.pieceScoreEarlyGame[p];
     pscoreLate += board.pieceScoreLateGame[p];
   }
-  score -= (int) (pscoreEarly*earlyWeight + pscoreLate*lateWeight);
+  score -= (int)(pscoreEarly * earlyWeight + pscoreLate * lateWeight);
+
+  score += kingSafety(board, White) * 50;
+  score -= kingSafety(board, Black) * 50;
 
   return score;
 }
@@ -205,7 +218,8 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
 TranspositionTable &AI::getTable() { return table; }
 
 int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
-                   std::atomic<bool> &stop, int &count, int depthLimit, int kickoff) {
+                   std::atomic<bool> &stop, int &count, int depthLimit,
+                   int kickoff) {
 
   count++;
 
@@ -266,8 +280,9 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
         int see = board.see(mv);
         if (see >= 0) {
           board.makeMove(mv);
-          int score = -1 * quiescence(board, plyCount + 1, -1 * beta,
-                                      -1 * alpha, stop, count, depthLimit, kickoff+1);
+          int score =
+              -1 * quiescence(board, plyCount + 1, -1 * beta, -1 * alpha, stop,
+                              count, depthLimit, kickoff + 1);
           board.unmakeMove();
           if (score >= beta)
             return beta;
@@ -278,7 +293,7 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
     } else if (mv.isPromotion() || (isCheck || board.isCheckingMove(mv))) {
       board.makeMove(mv);
       int score = -1 * quiescence(board, plyCount + 1, -1 * beta, -1 * alpha,
-                                  stop, count, 10, kickoff+1);
+                                  stop, count, 10, kickoff + 1);
       board.unmakeMove();
       if (score >= beta)
         return beta;
@@ -367,15 +382,24 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       if (alpha >= beta) {
         return found->second;
       }
+    } else {
+      // Ideally a PV-node from prior iteration
+      NodeType typ = found->first.nodeType;
+      if (typ == NodeType::PV) {
+        refMove = found->first.bestMove;
+      }
     }
   }
+
+  // use IID to find best move????
 
   bool nodeIsCheck = board.isCheck();
 
   bool nullmove = true;
   // NULL MOVE PRUNE
   // MAKE SURE NOT IN CHECK??
-  if (nullmove && !nodeIsCheck) {
+  if ((nullmove && !nodeIsCheck) &&
+      (board.lastMove().notNull() && hadd(board.occupancy() > 6))) {
     int r = 2;
     Move mv = Move::NullMove();
     board.makeMove(mv);
@@ -436,7 +460,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
         seenAll = true;
         allMoves.clear();
         allMoves.reserve(hashMoves.size() + posCaptures.size() +
-                        eqCaptures.size() + heuristics.size() + other.size());
+                         eqCaptures.size() + heuristics.size() + other.size());
         allMoves.insert(allMoves.end(), other.begin(), other.end());
         allMoves.insert(allMoves.end(), eqCaptures.begin(), eqCaptures.end());
         allMoves.insert(allMoves.end(), heuristics.begin(), heuristics.end());
@@ -476,7 +500,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
         break;
       }
     } else {
-      //grab depending on phase
+      // grab depending on phase
       if (phase == 0) {
         if (hashMoves.size() > 0) {
           fmove = hashMoves.back();
@@ -486,7 +510,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
           continue;
         }
       } else if (phase == 1) {
-        //looking for pos captures
+        // looking for pos captures
         if (posCaptures.size() > 0) {
           fmove = posCaptures.back();
           posCaptures.pop_back();

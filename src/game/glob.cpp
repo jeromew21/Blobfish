@@ -213,13 +213,12 @@ u64 u64FromPair(int r, int c) {
 int intFromPair(int r, int c) { return r * 8 + c; }
 
 int distToClosestCorner(int r, int c) {
-  int dc00 = abs(r-0) + abs(c-0);
-  int dc07 = abs(r-0) + abs(c-7);
-  int dc70 = abs(r-7) + abs(c-0);
-  int dc77 = abs(r-7) + abs(c-7);
+  int dc00 = abs(r - 0) + abs(c - 0);
+  int dc07 = abs(r - 0) + abs(c - 7);
+  int dc70 = abs(r - 7) + abs(c - 0);
+  int dc77 = abs(r - 7) + abs(c - 7);
   return min(min(dc00, dc07), min(dc70, dc77));
 }
-
 
 std::string yesorno(bool b) { return b ? "yes" : "no"; }
 

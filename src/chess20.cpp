@@ -68,8 +68,6 @@ public:
         }
         sendCommand("info string mate plies " + std::to_string(plies));
         sendCommand("info score mate " + std::to_string(y));
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        //do not overload the output
         break;
       } else {               // it finishes at that layer
         bestMove = calcMove; // PV-move
@@ -102,7 +100,7 @@ public:
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             stop - start); // or milliseconds
         int time = duration.count();
-        if (time > msecs) {
+        if (time >= msecs) {
           break;
         }
       }
@@ -176,6 +174,7 @@ should not rely on this command even though all new GUIs should support it. As
 the engine's reaction to "ucinewgame" can take some time the GUI should always
 send "isready" after "ucinewgame" to wait for the engine to finish its
 operation.*/
+      AI::reset();
     } else if (tokens[0] == "position") {
       int j = 2;
       if (tokens[1] == "startpos") {

@@ -72,8 +72,6 @@ public:
 
   std::string vectorize(); // stdout a string rep
 
-  int mobility(Color color);
-
   // shortcut move gen
   std::vector<Move> produceUncheckMoves();
 

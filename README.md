@@ -20,22 +20,20 @@ Tested in one-second games versus Stockfish with set ELO
 7. Threefold Repetition detection
 
 # Todos (in order of priority)
+8. Improve evaluation (king safety)
 1. Improve hash table
-8. Improve evaluation (neural eval?)
-1. Optimize for lazy move generation
-7. Move ordering concerns
-3. Create testing suite
-4. Search extensions and reductions
-4. Improve quiescience search (delta pruning, checks, etc)
-5. Add more pruning (null, etc)
-6. Complete implementation of UCI interface (pondering, etc)
-7. Aspiration windows??
-6. Resolve exit during search issues
-10. Experiment with fail-soft instead of fail hard
+9. Test if different random seeds improve hash table performance
+1. Optimize move generation (magic BB) and checking (xrays, pins, etc) 
+7. Move ordering concerns (history heuristic)
 9. Implement Scout/PVS on top of alpha-beta
+10. Internal iterative deepening?
+3. Create testing suite
+7. Aspiration windows/fail-soft
+4. Improve quiescience search (delta pruning, checks, etc)
+6. Complete implementation of UCI interface (pondering, etc)
+6. Resolve exit during search issues
 1. parallel search ideas
 9. Look at MCTS / alternative search algorithms
-9. Test if different random seeds improve hash table performance
 
 
 ## Problematic/instructive inputs

@@ -257,7 +257,7 @@ void populateMoveCache() {
       float qmoves = bmoves+rmoves;
       bmoves /= 13.0;
       rmoves /= 14.0;
-      qmoves /= 27.0;
+      qmoves /= 54.0;
       PIECE_SQUARE_TABLE[W_Bishop][0].set(index, bmoves);
       PIECE_SQUARE_TABLE[W_Bishop][1].set(index, bmoves);
       PIECE_SQUARE_TABLE[B_Bishop][0].set(index, bmoves);
@@ -365,21 +365,6 @@ void Board::_generatePseudoLegal() {
   }
 
   _pseudoStack.push_back(PseudoLegalData(attackMap, defendMap));
-}
-
-int Board::mobility(Color c) {
-  int result = 0;
-  u64 friendlies = occupancy(c);
-  u64 pawns = c == White ? W_Pawn : B_Pawn;
-  std::array<u64, 64> arr;
-  int count;
-
-  bitscanAll(arr, friendlies & ~pawns, count);
-  for (int i = 0; i < count; i++) {
-    result += hadd(attackMap[u64ToIndex(arr[i])] & ~friendlies);
-  }
-
-  return result; // todo fix
 }
 
 u64 Board::_isUnderAttack(u64 target) { return defendMap[u64ToIndex(target)]; }

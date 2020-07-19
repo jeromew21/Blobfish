@@ -130,10 +130,13 @@ int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
 void orderMoves(Board &board, std::vector<Move> &mvs, int ply);
 
 void init();
+void reset();
 
 void clearKillerTable();
 
-int kingSafety(Board &board, Color c);
+int mobility(Board &board, Color c);
+
+float kingSafety(Board &board, Color c);
 
 } // namespace AI
 
