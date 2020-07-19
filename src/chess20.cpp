@@ -31,11 +31,9 @@ public:
     int depthLimit = INTMAX;
     int bestScore = INTMIN;
     bestMove = board.legalMoves()[0];
-    AI::clearKillerTable();
 
     for (depth = 0; depth < depthLimit; depth++) {
       int score;
-      sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
       // send principal variation move from previous
       Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove,
                                    nodeCount, start);
@@ -75,9 +73,11 @@ public:
       }
     }
     sendCommand("bestmove " + moveToUCIAlgebraic(bestMove));
-    sendCommand("info string think() routine ended");
+    //sendCommand("info string think() routine ended");
+    sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
     _stopKiller = true;
     _notThinking = true;
+    AI::clearKillerTable(); //clean up
   }
 
   void stopThinking() {

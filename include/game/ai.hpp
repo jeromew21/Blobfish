@@ -72,6 +72,11 @@ public:
       // no overwrite
       members += 1;
     }
+    if (node.hash == bucket->first.hash) {
+      if (node.depth < bucket->first.depth) {
+        return;
+      }
+    }
     bucket->first = node;
     bucket->second = score;
   }
@@ -125,7 +130,7 @@ int quiescence(Board &board, int plyCount, int alpha, int beta,
                std::atomic<bool> &stop, int &count, int depthLimit, int kickoff);
 
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
-                  std::atomic<bool> &stop, int &count);
+                  std::atomic<bool> &stop, int &count, NodeType myNodeType);
 
 void orderMoves(Board &board, std::vector<Move> &mvs, int ply);
 

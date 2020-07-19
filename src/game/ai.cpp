@@ -136,14 +136,17 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
   outscore = alpha;
 
   bool raisedAlpha = false;
+  NodeType nodeTyp = NodeType::PV;
 
   while (moves.size() > 0) {
     Move mv = moves.back();
     moves.pop_back();
     board.makeMove(mv);
     int score = -1 * AI::alphaBetaNega(board, depth, 0, -1 * beta, -1 * alpha,
-                                       stop, count);
+                                       stop, count, nodeTyp);
     board.unmakeMove();
+
+    nodeTyp = NodeType::All; // predicted cut??
 
     if (stop) {
       outscore = alpha;
@@ -342,7 +345,8 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs, int ply) {
 }
 
 int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
-                      int beta, std::atomic<bool> &stop, int &count) {
+                      int beta, std::atomic<bool> &stop, int &count,
+                      NodeType myNodeType) {
   count++;
 
   BoardStatus status = board.status();
@@ -363,7 +367,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   Move refMove;
 
-  TableNode node(board, depth, NodeType::All);
+  TableNode node(board, depth, myNodeType);
 
   auto found = table.find(node);
   if (found != table.end()) {
@@ -403,8 +407,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     int r = 2;
     Move mv = Move::NullMove();
     board.makeMove(mv);
-    int score = -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1,
-                                       -1 * beta, -1 * alpha, stop, count);
+    int score =
+        -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1, -1 * beta,
+                               -1 * alpha, stop, count, NodeType::All);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
@@ -452,6 +457,13 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   Move lastMove = board.lastMove();
   bool seenAll = false;
   std::vector<Move> allMoves;
+
+  NodeType childNodeType = myNodeType;
+  if (myNodeType == NodeType::PV) {
+    childNodeType = NodeType::PV;
+  }
+  bool nullWindow = false;
+  bool foundMove = refMove.notNull();
 
   while (true) {
     if (!seenAll) {
@@ -543,10 +555,22 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     } else if (checkExtend) {
       subdepth = depth;
     }
+    int score;
+    if (nullWindow) {
+      score =
+          -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * alpha - 1,
+                                 -1 * alpha, stop, count, childNodeType);
+      if (score > alpha) {
+        score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
+                                       -1 * alpha, stop, count, childNodeType);
+      }
+    } else {
+      score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
+                                     -1 * alpha, stop, count,
+                                     childNodeType); // best move for oppo
+      childNodeType = NodeType::All;
+    }
 
-    int score =
-        -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
-                               -1 * alpha, stop, count); // best move for oppo
     board.unmakeMove();
     movesSearched++;
 
@@ -570,6 +594,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     }
 
     if (score > alpha) {
+      nullWindow = foundMove || true;
       node.nodeType = NodeType::PV;
       node.bestMove = fmove;
       alpha = score; // push up alpha
