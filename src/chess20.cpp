@@ -328,8 +328,7 @@ int main() {
   // srand100(65634536);
   srand100(13194);
 
-  // std::cout << std::cin.read();
-
+  sendCommand("info string initialized");
   {
     UCIInterface interface;
     for (std::string command; std::getline(std::cin, command);) {

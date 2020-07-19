@@ -40,9 +40,6 @@ struct TableBucket {
   TableBucket() {}
 };
 
-void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
-            std::chrono::_V2::system_clock::time_point start);
-
 class TranspositionTable {
   TableBucket _arr[TABLE_SIZE];
   size_t members;
@@ -110,6 +107,11 @@ public:
     u64 hashval = node.hash;
     int bucketIndex = hashval % MINI_TABLE_SIZE;
     TableBucket *bucket = _arr + bucketIndex;
+    if (node.hash == bucket->first.hash) {
+      if (node.depth < bucket->first.depth) {
+        return;
+      }
+    }
     bucket->first = node;
     bucket->second = score;
   }
@@ -122,8 +124,12 @@ int flippedEval(Board &board);
 
 TranspositionTable &getTable();
 
+
+void sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
+            std::chrono::_V2::system_clock::time_point start);
+
 Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore,
-              Move &prevPv, int &count,
+              Move prevPv, int &count,
               std::chrono::_V2::system_clock::time_point start);
 
 int quiescence(Board &board, int plyCount, int alpha, int beta,

@@ -103,7 +103,7 @@ int AI::flippedEval(Board &board) {
 void AI::clearKillerTable() { kTable.clear(); }
 
 Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
-                  int &outscore, Move &prevPv, int &count,
+                  int &outscore, Move prevPv, int &count,
                   std::chrono::_V2::system_clock::time_point start) {
   // IID
   TableNode node(board, depth, NodeType::PV);
@@ -174,7 +174,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
   return chosen;
 }
 
-void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
+void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
             std::chrono::_V2::system_clock::time_point start) {
   if (depth == 0)
     return;
@@ -182,6 +182,12 @@ void sendPV(Board &board, int depth, Move &pvMove, int nodeCount, int score,
 
   board.makeMove(pvMove);
   int mc = 1;
+
+  TableNode nodeSearch(board, depth, NodeType::PV);
+  auto search = pvTable.find(nodeSearch);
+  if (search != pvTable.end()) {
+    depth = search->first.depth;
+  }
 
   for (int k = 0; k < depth - 1; k++) {
     TableNode nodeSearch(board, depth, NodeType::PV);
@@ -375,7 +381,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       NodeType typ = found->first.nodeType;
       if (typ == NodeType::All) {
         // upper bound, the exact score might be less.
-        beta = min(beta, found->second);
+        //beta = min(beta, found->second);
       } else if (typ == NodeType::Cut) {
         // lower bound
         refMove = found->first.bestMove;
@@ -400,6 +406,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   bool nodeIsCheck = board.isCheck();
 
   bool nullmove = true;
+  bool lmr = true;
+  bool checkExtend = nodeIsCheck && depth < 3;
+  bool futilityPrune = true;
+
   // NULL MOVE PRUNE
   // MAKE SURE NOT IN CHECK??
   if ((nullmove && !nodeIsCheck) &&
@@ -420,13 +430,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     }
   }
 
-  bool lmr = true;
   if (depth < 3) {
     lmr = false; // reduce on 3, 4, 5
   }
-  bool checkExtend = nodeIsCheck && depth < 3;
-
-  bool futilityPrune = true;
 
   int fscore = 0;
   if (depth == 1 && futilityPrune) {
@@ -464,6 +470,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   }
   bool nullWindow = false;
   bool foundMove = refMove.notNull();
+  bool raisedAlpha = false;
+
+  Move firstMove;
 
   while (true) {
     if (!seenAll) {
@@ -534,6 +543,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       }
     }
 
+    if (movesSearched == 0){
+      firstMove = fmove;
+    }
+
     if ((futilityPrune && depth == 1) && movesSearched >= 1) {
       if ((fmove.getDest() & ~occ && fmove != refMove) &&
           (!board.isCheckingMove(fmove) && !nodeIsCheck)) {
@@ -567,8 +580,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     } else {
       score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
                                      -1 * alpha, stop, count,
-                                     childNodeType); // best move for oppo
-      childNodeType = NodeType::All;
+                                     childNodeType);
     }
 
     board.unmakeMove();
@@ -589,20 +601,24 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
         kTable.insert(fmove, plyCount);
         cTable.insert(board.turn(), board.lastMove(), fmove);
       }
-
       return beta; // fail hard
     }
 
     if (score > alpha) {
-      nullWindow = foundMove || true;
+      nullWindow = foundMove;
+      raisedAlpha = true;
       node.nodeType = NodeType::PV;
       node.bestMove = fmove;
       alpha = score; // push up alpha
-    }
+      childNodeType = NodeType::All;
+    } 
+  }
+  if (!raisedAlpha) {
+    node.nodeType = NodeType::All;
   }
   table.insert(node, alpha); // store node
-  if (node.nodeType == NodeType::PV) {
-    pvTable.insert(node, alpha); // store node
+  if (raisedAlpha) {
+    pvTable.insert(node, alpha);
   }
   return alpha;
 }
