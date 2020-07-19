@@ -385,7 +385,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     } else {
       // Ideally a PV-node from prior iteration
       NodeType typ = found->first.nodeType;
-      if (typ == NodeType::PV) {
+      if (typ == NodeType::PV || typ == NodeType::Cut) {
         refMove = found->first.bestMove;
       }
     }
