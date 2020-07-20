@@ -381,7 +381,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       NodeType typ = found->first.nodeType;
       if (typ == NodeType::All) {
         // upper bound, the exact score might be less.
-        //beta = min(beta, found->second);
+        beta = min(beta, found->second);
       } else if (typ == NodeType::Cut) {
         // lower bound
         refMove = found->first.bestMove;
@@ -464,9 +464,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   bool seenAll = false;
   std::vector<Move> allMoves;
 
-  NodeType childNodeType = myNodeType;
+  NodeType childNodeType = NodeType::All;
   if (myNodeType == NodeType::PV) {
-    childNodeType = NodeType::PV;
+   // childNodeType = NodeType::PV;
   }
   bool nullWindow = false;
   bool foundMove = refMove.notNull();
