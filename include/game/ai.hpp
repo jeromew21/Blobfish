@@ -7,8 +7,7 @@
 #include <thread>
 #include <unordered_map>
 
-const size_t TABLE_SIZE = 32768;
-const size_t CAPACITY = 32768;
+const size_t TABLE_SIZE = 1048576;
 
 const size_t MINI_TABLE_SIZE = 8192;
 
@@ -47,7 +46,7 @@ class TranspositionTable {
 public:
   TranspositionTable() { members = 0; }
 
-  int ppm() { return ((double)members / (double)CAPACITY) * 1000.0; }
+  int ppm() { return ((double)members / (double)TABLE_SIZE) * 1000.0; }
 
   TableBucket *find(TableNode &node) {
     u64 hashval = node.hash;

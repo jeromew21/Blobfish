@@ -61,6 +61,10 @@ void initializeZobrist() {
   debugLog("Initialized zobrist hashes");
 }
 
+u64 kingMoves(int i) {
+  return KING_MOVE_CACHE[i];
+}
+
 std::string moveToUCIAlgebraic(Move mv) {
   std::string result;
   result += squareName(mv.getSrc());
@@ -234,7 +238,7 @@ void populateMoveCache() {
 
       r7 = 7 - distToClosestCorner(row, col);
       rr = distToClosestCorner(row, col);
-      r7 /= 7.0;
+      r7 /= 2.5;
       rr /= 7.0;
       PIECE_SQUARE_TABLE[W_King][0].set(index, r7);
       PIECE_SQUARE_TABLE[B_King][0].set(index, r7);
@@ -255,7 +259,7 @@ void populateMoveCache() {
         rmoves += hadd(ROOK_MOVE_CACHE[index][d]);
       }
       float qmoves = bmoves+rmoves;
-      bmoves /= 13.0;
+      bmoves /= 21.0;
       rmoves /= 14.0;
       qmoves /= 54.0;
       PIECE_SQUARE_TABLE[W_Bishop][0].set(index, bmoves);
@@ -367,10 +371,19 @@ void Board::_generatePseudoLegal() {
   _pseudoStack.push_back(PseudoLegalData(attackMap, defendMap));
 }
 
-u64 Board::_isUnderAttack(u64 target) { return defendMap[u64ToIndex(target)]; }
+u64 Board::_isUnderAttack(u64 target) { 
+  u64 result = 0;
+  std::array<int, 64> arr;
+  int count;
+  bitscanAllInt(arr, target, count);
+  for (int i = 0; i < count; i++) {
+    result |= defendMap[arr[i]];
+  }
+  return result;
+}
 
 u64 Board::_isUnderAttack(u64 target, Color byWho) {
-  return defendMap[u64ToIndex(target)] & occupancy(byWho);
+  return _isUnderAttack(target) & occupancy(byWho);
 }
 
 bool Board::isCheck() {

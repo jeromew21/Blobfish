@@ -8,6 +8,7 @@
 void populateMoveCache();
 void initializeZobrist();
 std::string moveToUCIAlgebraic(Move mv);
+u64 kingMoves(int i);
 
 class Board {
 private:

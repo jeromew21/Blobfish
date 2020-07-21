@@ -7,6 +7,7 @@ HistoryTable hTable;
 CounterMoveTable cTable;
 
 u64 BACK_RANK[2];
+u64 FILES[64];
 
 void AI::init() {
   BACK_RANK[White] = u64FromIndex(0) | u64FromIndex(1) | u64FromIndex(2) |
@@ -15,6 +16,15 @@ void AI::init() {
   BACK_RANK[Black] = u64FromIndex(56) | u64FromIndex(57) | u64FromIndex(58) |
                      u64FromIndex(59) | u64FromIndex(60) | u64FromIndex(61) |
                      u64FromIndex(62) | u64FromIndex(63);
+  for (int col = 0; col < 8; col++) {
+    for (int row = 0; row < 8; row++) {
+      u64 res = 0;
+      for (int i = 0; i < 8; i++) {
+        res |= u64FromPair(i, col);
+      }
+      FILES[intFromPair(row, col)] = res;
+    }
+  }
 }
 
 void AI::reset() {
@@ -25,7 +35,31 @@ void AI::reset() {
 
 int AI::materialEvaluation(Board &board) { return board.material(); }
 
-float AI::kingSafety(Board &board, Color c) { return 0; }
+float AI::kingSafety(Board &board, Color c) {
+  // open files -10 for being on one
+  //-5 for being next to one
+  // pawn shield +10 bonus for 3 pawns and bottom row
+  int score = 0;
+  // u64 friendlies = board.occupancy(c);
+  // u64 enemies = board.occupancy(flipColor(c));
+  u64 kingBB = c == White ? board.bitboard[W_King] : board.bitboard[B_King];
+  u64 pawns = c == White ? board.bitboard[W_Pawn] : board.bitboard[B_Pawn];
+  int index = u64ToIndex(kingBB);
+  // int col = u64ToCol(kingBB);
+  u64 file = FILES[index];
+  int pawnsAdj = 0;
+  if (pawns & file) {
+    score += 1;
+    pawnsAdj += hadd(kingMoves(index) & pawns);
+  }
+  if (kingBB & BACK_RANK[c]) {
+    pawnsAdj += hadd(kingMoves(index) & pawns);
+    score += 1;
+  }
+  score += pawnsAdj;
+
+  return score;
+}
 
 int AI::mobility(Board &board, Color c) { // Minor piece and king mobility
   int result = 0;
@@ -86,8 +120,8 @@ int AI::evaluation(Board &board) {
   }
   score -= (int)(pscoreEarly * earlyWeight + pscoreLate * lateWeight);
 
-  score += kingSafety(board, White) * 50;
-  score -= kingSafety(board, Black) * 50;
+  score += ((float)kingSafety(board, White) * earlyWeight);
+  score -= ((float)kingSafety(board, Black) * earlyWeight);
 
   return score;
 }
@@ -175,19 +209,13 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 }
 
 void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
-            std::chrono::_V2::system_clock::time_point start) {
+                std::chrono::_V2::system_clock::time_point start) {
   if (depth == 0)
     return;
   std::string pv = " pv " + moveToUCIAlgebraic(pvMove);
 
   board.makeMove(pvMove);
   int mc = 1;
-
-  TableNode nodeSearch(board, depth, NodeType::PV);
-  auto search = pvTable.find(nodeSearch);
-  if (search != pvTable.end()) {
-    depth = search->first.depth;
-  }
 
   for (int k = 0; k < depth - 1; k++) {
     TableNode nodeSearch(board, depth, NodeType::PV);
@@ -371,12 +399,20 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     return score;
   }
 
+  static int hits_;
+  static int total_;
+  total_ += 1;
+  if (total_%10000 ==0) {
+    sendCommand("info string hitrate " + std::to_string((double)hits_/(double)total_));
+  }
+
   Move refMove;
 
   TableNode node(board, depth, myNodeType);
 
   auto found = table.find(node);
   if (found != table.end()) {
+    hits_++;
     if (found->first.depth >= depth) { // searched already to a higher depth
       NodeType typ = found->first.nodeType;
       if (typ == NodeType::All) {
@@ -423,6 +459,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
+      node.nodeType = NodeType::Cut;
+      node.bestMove = Move::NullMove();
+      node.depth = depth - r;
+      table.insert(node, beta);
       return beta;       // fail hard
     }
     if (score > alpha) {
@@ -465,9 +505,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   std::vector<Move> allMoves;
 
   NodeType childNodeType = NodeType::All;
-  if (myNodeType == NodeType::PV) {
-   // childNodeType = NodeType::PV;
-  }
+  
   bool nullWindow = false;
   bool foundMove = refMove.notNull();
   bool raisedAlpha = false;
@@ -543,7 +581,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       }
     }
 
-    if (movesSearched == 0){
+    if (movesSearched == 0) {
       firstMove = fmove;
     }
 
@@ -563,10 +601,12 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     int subdepth = depth - 1;
     if (!nodeIsCheck && !board.isCheck()) {
       if (lmr && movesSearched > 4) {
-        subdepth--;
+        subdepth = depth - 2;
+        node.depth = depth - 1;
       }
     } else if (checkExtend) {
       subdepth = depth;
+      node.depth = depth + 1;
     }
     int score;
     if (nullWindow) {
@@ -579,8 +619,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       }
     } else {
       score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
-                                     -1 * alpha, stop, count,
-                                     childNodeType);
+                                     -1 * alpha, stop, count, childNodeType);
     }
 
     board.unmakeMove();
@@ -611,7 +650,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       node.bestMove = fmove;
       alpha = score; // push up alpha
       childNodeType = NodeType::All;
-    } 
+    }
   }
   if (!raisedAlpha) {
     node.nodeType = NodeType::All;
