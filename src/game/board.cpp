@@ -530,7 +530,7 @@ std::string Board::moveToAlgebraic(Move mv) {
 
 BoardStatus Board::status() {
   if (_status == BoardStatus::NotCalculated) {
-    if (boardState[HAS_REPEATED_INDEX]) {
+    if (boardState[HAS_REPEATED_INDEX] == 1) {
       _status = BoardStatus::Draw;
       return _status;
     }
@@ -1339,6 +1339,8 @@ int Board::see(Move mv) {
   u64 dest = mv.getDest();
   PieceType attacker = pieceAt(src);
   PieceType targetPiece = pieceAt(dest);
+
+  if (targetPiece == Empty) return -1;
 
   Color color = colorOf(attacker);
   u64 attackSet = _isUnderAttack(dest);

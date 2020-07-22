@@ -132,7 +132,7 @@ Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore,
               std::chrono::_V2::system_clock::time_point start);
 
 int quiescence(Board &board, int plyCount, int alpha, int beta,
-               std::atomic<bool> &stop, int &count, int depthLimit, int kickoff);
+               std::atomic<bool> &stop, int &count, int kickoff);
 
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
                   std::atomic<bool> &stop, int &count, NodeType myNodeType);

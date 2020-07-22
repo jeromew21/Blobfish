@@ -22,9 +22,9 @@ public:
   }
 
   void think() {
+    auto start = std::chrono::high_resolution_clock::now();
     sendCommand("info string think() routine started");
     // iterative deepening
-    auto start = std::chrono::high_resolution_clock::now();
 
     int depth = 0;
     int nodeCount = 1;
@@ -94,13 +94,14 @@ public:
   void delayStop(int msecs) {
     auto start = std::chrono::high_resolution_clock::now();
     int i = 0;
+    int pad = 25; //25 ms pad
     while (true) {
-      if (i % 1000 == 0) {
+      if (i % 64 == 0) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             stop - start); // or milliseconds
         int time = duration.count();
-        if (time >= msecs) {
+        if (time >= msecs-pad) {
           break;
         }
       }
