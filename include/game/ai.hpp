@@ -5,20 +5,16 @@
 #include <game/board.hpp>
 #include <limits>
 #include <thread>
-#include <unordered_map>
 
 const size_t TABLE_SIZE = 1048576;
 
-const size_t MINI_TABLE_SIZE = 8192;
-
-enum NodeType { PV = 0, Cut = 1, All = 2 };
+const size_t MINI_TABLE_SIZE = 16384;
 
 struct TableNode {
   u64 hash;
   int depth;
-
-  Move bestMove;
   NodeType nodeType;
+  Move bestMove;
 
   TableNode(Board &board, int d, NodeType typ) {
     hash = board.zobrist();

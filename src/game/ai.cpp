@@ -137,7 +137,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
                   int &outscore, Move prevPv, int &count,
                   std::chrono::_V2::system_clock::time_point start) {
   // IID
-  TableNode node(board, depth, NodeType::PV);
+  TableNode node(board, depth, PV);
 
   auto moves = board.legalMoves();
   orderMoves(board, moves, 0);
@@ -167,7 +167,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
   outscore = alpha;
 
   bool raisedAlpha = false;
-  NodeType nodeTyp = NodeType::PV;
+  NodeType nodeTyp = PV;
 
   while (moves.size() > 0) {
     Move mv = moves.back();
@@ -177,7 +177,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
                                        stop, count, nodeTyp);
     board.unmakeMove();
 
-    nodeTyp = NodeType::All; // predicted cut??
+    nodeTyp = All; // predicted cut??
 
     if (stop) {
       outscore = alpha;
@@ -217,7 +217,7 @@ void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
   depth = min(depth, 15);
 
   for (int k = 0; k < depth - 1; k++) {
-    TableNode nodeSearch(board, depth, NodeType::PV);
+    TableNode nodeSearch(board, depth, PV);
     auto search = pvTable.find(nodeSearch);
     if (search != pvTable.end()) {
       TableNode node = search->first;
@@ -387,18 +387,25 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   count++;
 
   BoardStatus status = board.status();
+  TableNode node(board, depth, myNodeType);
+
   if (status != BoardStatus::Playing) {
     int score = AI::flippedEval(board); // store?
     if (status == BoardStatus::BlackWin || status == BoardStatus::WhiteWin) {
       // we got mated
       score += plyCount;
     }
+    //update the table
+    node.nodeType = PV;
+    table.insert(node, score);
     return score;
   }
 
   if (depth <= 0) {
     int score =
         quiescence(board, plyCount + 1, alpha, beta, stop, count, 0);
+    node.nodeType = PV;
+    table.insert(node, score);
     return score;
   }
 
@@ -412,21 +419,20 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   Move refMove;
 
-  TableNode node(board, depth, myNodeType);
 
   auto found = table.find(node);
   if (found != table.end()) {
     hits_++;
     if (found->first.depth >= depth) { // searched already to a higher depth
       NodeType typ = found->first.nodeType;
-      if (typ == NodeType::All) {
+      if (typ == All) {
         // upper bound, the exact score might be less.
         beta = min(beta, found->second);
-      } else if (typ == NodeType::Cut) {
+      } else if (typ == Cut) {
         // lower bound
         refMove = found->first.bestMove;
         alpha = max(alpha, found->second);
-      } else if (typ == NodeType::PV) {
+      } else if (typ == PV) {
         return found->second;
       }
       if (alpha >= beta) {
@@ -454,13 +460,13 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     board.makeMove(mv);
     int score =
         -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1, -1 * beta,
-                               -1 * alpha, stop, count, NodeType::All);
+                               -1 * alpha, stop, count, All);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
-      node.nodeType = NodeType::Cut;
+      node.nodeType = Cut;
       node.bestMove = Move::NullMove();
-      node.depth = depth - r;
+      //node.depth = depth - r;
       table.insert(node, beta);
       return beta; // fail hard
     }
@@ -499,7 +505,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   bool seenAll = false;
   std::vector<Move> allMoves;
 
-  NodeType childNodeType = NodeType::All;
+  NodeType childNodeType = All;
 
   bool nullWindow = false;
   bool foundMove = refMove.notNull();
@@ -622,7 +628,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     }
 
     if (score >= beta) { // our move is better than beta, so this node is cut
-      node.nodeType = NodeType::Cut;
+      node.nodeType = Cut;
       node.bestMove = fmove;
       table.insert(node, beta);
 
@@ -637,14 +643,14 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     if (score > alpha) {
       nullWindow = foundMove;
       raisedAlpha = true;
-      node.nodeType = NodeType::PV;
+      node.nodeType = PV;
       node.bestMove = fmove;
       alpha = score; // push up alpha
-      childNodeType = NodeType::All;
+      childNodeType = All;
     }
   }
   if (!raisedAlpha) {
-    node.nodeType = NodeType::All;
+    node.nodeType = All;
   }
   table.insert(node, alpha); // store node
   if (raisedAlpha) {

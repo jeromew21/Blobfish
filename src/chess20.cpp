@@ -33,6 +33,7 @@ public:
     bestMove = board.legalMoves()[0];
 
     for (depth = 0; depth < depthLimit; depth++) {
+      sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
       int score;
       // send principal variation move from previous
       Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove,

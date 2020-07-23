@@ -11,8 +11,14 @@
 
 #define PieceType int
 #define Color int
+#define NodeType int16_t
 
-#define u64 u_int64_t
+#define u64 uint64_t
+
+
+const NodeType PV = 0; 
+const NodeType Cut = 1;
+const NodeType All = 2;
 
 const int INTMIN = -10000000; // minimum value
 const int INTMAX = 10000000;

@@ -536,7 +536,6 @@ BoardStatus Board::status() {
     }
     // calculate
 
-    // TODO: Fix insuff material
     if (hadd(bitboard[W_Pawn] | bitboard[B_Pawn] | bitboard[B_Queen] |
               bitboard[W_Queen] | bitboard[W_Rook] | bitboard[B_Rook]) == 0) {
       // if either side has at least two minor pieces and one bishop
