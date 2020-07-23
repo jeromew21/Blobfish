@@ -290,8 +290,7 @@ void AI::orderMoves(Board &board, std::vector<Move> &mvs, int ply) {
 }
 
 int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
-                   std::atomic<bool> &stop, int &count,
-                   int kickoff) {
+                   std::atomic<bool> &stop, int &count, int kickoff) {
 
   count++;
 
@@ -336,14 +335,17 @@ int AI::quiescence(Board &board, int plyCount, int alpha, int beta,
 
     int see = -1;
     bool isCapture = mv.getDest() & occ;
-    if (isCapture) { see = board.see(mv); }
+    if (isCapture) {
+      see = board.see(mv);
+    }
     bool isPromotion = mv.isPromotion();
     bool isDeltaPrune =
         deltaPrune &&
         (baseline + 200 + MATERIAL_TABLE[board.pieceAt(mv.getDest())] < alpha);
     bool isChecking = kickoff <= 5 && board.isCheckingMove(mv);
 
-    if (((!isDeltaPrune && see >= 0) || isChecking) || (isPromotion || isCheck)) {
+    if (((!isDeltaPrune && see >= 0) || isChecking) ||
+        (isPromotion || isCheck)) {
       board.makeMove(mv);
       int score = -1 * quiescence(board, plyCount + 1, -1 * beta, -1 * alpha,
                                   stop, count, kickoff + 1);
@@ -395,16 +397,19 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       // we got mated
       score += plyCount;
     }
-    //update the table
+    // update the table
     node.nodeType = PV;
+    node.depth = INTMAX;
+    // import for threefold positions. If it's seen the position before as a
+    // non-repeated position, then we want to always overwrite.
     table.insert(node, score);
     return score;
   }
 
   if (depth <= 0) {
-    int score =
-        quiescence(board, plyCount + 1, alpha, beta, stop, count, 0);
+    int score = quiescence(board, plyCount + 1, alpha, beta, stop, count, 0);
     node.nodeType = PV;
+    node.depth = 0;
     table.insert(node, score);
     return score;
   }
@@ -418,7 +423,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   }
 
   Move refMove;
-
 
   auto found = table.find(node);
   if (found != table.end()) {
@@ -448,25 +452,24 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   bool nodeIsCheck = board.isCheck();
 
-  bool nullmove = hadd(board.occupancy()) > 8;
-  bool lmr = depth < 3;
+  bool nullmove = true;
+  bool lmr = true;
   bool futilityPrune = true;
 
   // NULL MOVE PRUNE
   if ((nullmove && !nodeIsCheck) &&
-      (board.lastMove().notNull())) {
+      (board.lastMove().notNull() && hadd(board.occupancy()) > 8)) {
     int r = 2;
     Move mv = Move::NullMove();
     board.makeMove(mv);
-    int score =
-        -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1, -1 * beta,
-                               -1 * alpha, stop, count, All);
+    int score = -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1,
+                                       -1 * beta, -1 * alpha, stop, count, All);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
       node.nodeType = Cut;
       node.bestMove = Move::NullMove();
-      //node.depth = depth - r;
+      // node.depth = depth - r;
       table.insert(node, beta);
       return beta; // fail hard
     }
@@ -596,28 +599,41 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       }
     }
 
+    bool isCapture = fmove.getDest() & occ;
+    bool isPromotion = fmove.isPromotion();
+    bool isReduced = false;
+
     board.makeMove(fmove);
 
     int subdepth = depth - 1;
-    if (!nodeIsCheck && !board.isCheck()) {
-      if (lmr && movesSearched > 4) {
-        subdepth = depth - 2;
-      }
+    if (lmr && !nodeIsCheck && !isPromotion && !board.isCheck() && !isCapture &&
+        (myNodeType != PV) && depth > 2 && movesSearched > 4) {
+      subdepth = depth - 2; // LMR: need to re-search
+      isReduced = true;
     } else if (board.isCheck()) {
-      subdepth = depth;
+      subdepth = depth; // Check ext
     }
     int score;
     if (nullWindow) {
       score =
           -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * alpha - 1,
-                                 -1 * alpha, stop, count, childNodeType);
+                                 -1 * alpha, stop, count, All);
       if (score > alpha) {
+        if (isReduced) {
+          subdepth = depth - 1;
+        }
         score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
-                                       -1 * alpha, stop, count, childNodeType);
+                                       -1 * alpha, stop, count, PV);
       }
     } else {
       score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
                                      -1 * alpha, stop, count, childNodeType);
+      if (isReduced && score > alpha) {
+        subdepth = depth - 1;
+        score =
+            -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
+                                   -1 * alpha, stop, count, PV);
+      }
     }
 
     board.unmakeMove();
