@@ -397,12 +397,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       // we got mated
       score += plyCount;
     }
-    // update the table
-    node.nodeType = PV;
-    node.depth = INTMAX;
-    // import for threefold positions. If it's seen the position before as a
-    // non-repeated position, then we want to always overwrite.
-    table.insert(node, score);
     return score;
   }
 
@@ -509,12 +503,13 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   std::vector<Move> allMoves;
 
   NodeType childNodeType = All;
+  if (myNodeType == PV) {
+    childNodeType = PV;
+  }
 
   bool nullWindow = false;
-  bool foundMove = refMove.notNull();
+  bool foundMove = refMove.notNull(); //iid
   bool raisedAlpha = false;
-
-  Move firstMove;
 
   while (true) {
     if (!seenAll) {
@@ -585,10 +580,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       }
     }
 
-    if (movesSearched == 0) {
-      firstMove = fmove;
-    }
-
     if ((futilityPrune && depth == 1) && movesSearched >= 1) {
       if ((fmove.getDest() & ~occ && fmove != refMove) &&
           (!board.isCheckingMove(fmove) && !nodeIsCheck)) {
@@ -608,7 +599,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     int subdepth = depth - 1;
     if (lmr && !nodeIsCheck && !isPromotion && !board.isCheck() && !isCapture &&
         (myNodeType != PV) && depth > 2 && movesSearched > 4) {
-      subdepth = depth - 2; // LMR: need to re-search
+      subdepth = depth - 2; // LMR
       isReduced = true;
     } else if (board.isCheck()) {
       subdepth = depth; // Check ext
