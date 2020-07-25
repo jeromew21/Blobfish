@@ -127,7 +127,7 @@ Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore,
               Move prevPv, int &count,
               std::chrono::_V2::system_clock::time_point start, std::vector<MoveScore>& prevScores);
 
-int quiescence(Board &board, int plyCount, int alpha, int beta,
+int quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
                std::atomic<bool> &stop, int &count, int kickoff);
 
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,

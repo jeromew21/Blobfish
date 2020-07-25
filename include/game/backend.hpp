@@ -32,6 +32,9 @@ struct PieceSquareTable {
 
 struct LazyMovegen {
 
+  bool hasGenSpecial;
+  std::vector<Move> sbuffer;
+
   std::array<int, 64> srcList;
   int srcIndex;
   int numSrcs;
@@ -44,6 +47,8 @@ struct LazyMovegen {
   bool hasNext() { return _hasNext; }
 
   LazyMovegen(u64 srcMap, std::array<u64, 64> &attackMap) {
+    hasGenSpecial = false;
+
     _hasNext = true;
     bitscanAllInt(srcList, srcMap, numSrcs);
     if (numSrcs == 0) {

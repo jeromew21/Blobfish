@@ -59,8 +59,7 @@ public:
   bool verifyLegal(Move mv);
 
   void generateSpecialMoves(std::vector<Move> &sbuffer);
-  Move nextMove(LazyMovegen &movegen, std::vector<Move> &sbuffer,
-                bool &hasGenSpecial);
+  Move nextMove(LazyMovegen &movegen);
 
   u64 rookStartingPositions[2][2];
   u64 kingStartingPositions[2];

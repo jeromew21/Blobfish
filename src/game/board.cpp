@@ -229,7 +229,7 @@ void populateMoveCache() {
     for (int col = 0; col < 8; col++) {
       int index = intFromPair(row, col);
       //weight pawns lower and kings higher
-      float rr = row/14.0;
+      float rr = ((float)row)/14.0;
       float r7 = ((float)(7-row))/14.0;
       PIECE_SQUARE_TABLE[W_Pawn][0].set(index, rr);
       PIECE_SQUARE_TABLE[W_Pawn][1].set(index, rr);
@@ -238,7 +238,7 @@ void populateMoveCache() {
 
       r7 = 7 - distToClosestCorner(row, col);
       rr = distToClosestCorner(row, col);
-      r7 /= 2.5;
+      r7 /= 14.0;
       rr /= 7.0;
       PIECE_SQUARE_TABLE[W_King][0].set(index, r7);
       PIECE_SQUARE_TABLE[B_King][0].set(index, r7);
@@ -396,9 +396,7 @@ std::vector<Move> Board::produceUncheckMoves() {
   // todo make this work
   std::vector<Move> result;
   LazyMovegen movegen(occupancy(turn()), attackMap);
-  std::vector<Move> sbuffer;
-  bool hasGenSpecial = false;
-  Move mv = nextMove(movegen, sbuffer, hasGenSpecial);
+  Move mv = nextMove(movegen);
   if (mv.notNull()) {
     result.push_back(mv);
   }
@@ -637,6 +635,10 @@ void Board::makeMove(Move mv) {
     u64 dest = mv.getDest();
     PieceType mover = pieceAt(src);
     PieceType destFormer = pieceAt(dest);
+
+    if (mover % 6 == 0 || destFormer != Empty) {
+      boardState[HAS_REPEATED_INDEX] = 0;
+    }
 
     boardState[LAST_MOVED_INDEX] = mover;
 
@@ -1090,15 +1092,14 @@ void Board::generateSpecialMoves(std::vector<Move> &sbuffer) {
   }
 }
 
-Move Board::nextMove(LazyMovegen &movegen, std::vector<Move> &sbuffer,
-                     bool &hasGenSpecial) {
+Move Board::nextMove(LazyMovegen &movegen) {
   if (movegen.hasNext()) {
     int s, d;
     movegen.next(attackMap, s, d);
     // std::cout << s << "->" << d <<"\n";
     u64 friendlies = occupancy(turn());
     if (u64FromIndex(d) & friendlies) {
-      return nextMove(movegen, sbuffer, hasGenSpecial);
+      return nextMove(movegen);
     } else {
       Move mv;
       Color color = turn();
@@ -1109,16 +1110,16 @@ Move Board::nextMove(LazyMovegen &movegen, std::vector<Move> &sbuffer,
         // deal with pawn capture rules
         if (u64FromIndex(d) & enemies) {
           if (intToRow(s) == pRow) {
-            sbuffer.push_back(Move(s, d, MoveTypeCode::BPromotion));
-            sbuffer.push_back(Move(s, d, MoveTypeCode::RPromotion));
-            sbuffer.push_back(Move(s, d, MoveTypeCode::KPromotion));
-            sbuffer.push_back(Move(s, d, MoveTypeCode::QPromotion));
-            return nextMove(movegen, sbuffer, hasGenSpecial);
+            movegen.sbuffer.push_back(Move(s, d, MoveTypeCode::BPromotion));
+            movegen.sbuffer.push_back(Move(s, d, MoveTypeCode::RPromotion));
+            movegen.sbuffer.push_back(Move(s, d, MoveTypeCode::KPromotion));
+            movegen.sbuffer.push_back(Move(s, d, MoveTypeCode::QPromotion));
+            return nextMove(movegen);
           } else {
             mv = Move(s, d, MoveTypeCode::Default);
           }
         } else {
-          return nextMove(movegen, sbuffer, hasGenSpecial);
+          return nextMove(movegen);
         }
       } else {
         mv = Move(s, d, MoveTypeCode::Default);
@@ -1126,17 +1127,17 @@ Move Board::nextMove(LazyMovegen &movegen, std::vector<Move> &sbuffer,
       if (verifyLegal(mv)) {
         return mv;
       } else {
-        return nextMove(movegen, sbuffer, hasGenSpecial);
+        return nextMove(movegen);
       }
     }
   } else {
-    if (!hasGenSpecial) {
-      generateSpecialMoves(sbuffer);
-      hasGenSpecial = true;
+    if (!movegen.hasGenSpecial) {
+      generateSpecialMoves(movegen.sbuffer);
+      movegen.hasGenSpecial = true;
     }
-    while (sbuffer.size() > 0) {
-      Move mv = sbuffer.back();
-      sbuffer.pop_back();
+    while (movegen.sbuffer.size() > 0) {
+      Move mv = movegen.sbuffer.back();
+      movegen.sbuffer.pop_back();
       if (verifyLegal(mv)) {
         return mv;
       }
@@ -1622,12 +1623,10 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
 std::vector<Move> Board::legalMoves() {
   std::vector<Move> v;
   LazyMovegen movegen(occupancy(turn()), attackMap);
-  std::vector<Move> sbuffer;
-  bool hasGenSpecial = false;
-  Move mv = nextMove(movegen, sbuffer, hasGenSpecial);
+  Move mv = nextMove(movegen);
   while (mv.notNull()) {
     v.push_back(mv);
-    mv = nextMove(movegen, sbuffer, hasGenSpecial);
+    mv = nextMove(movegen);
   }
   return v;
 }
