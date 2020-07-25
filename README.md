@@ -1,5 +1,6 @@
-# Chess
+# Blobfish
 
+Blobfish is a command-line only chess engine.
 
 # Rating progress
 
@@ -17,13 +18,13 @@ Tested in one-second games versus Stockfish with set ELO
 5. Null move pruning
 6. Killer heuristic
 7. Countermove heuristic
-7. Threefold Repetition detection
+7. Threefold Repetition detection (though with the transposition table it gets very messy)
 
 # Todos (in order of priority)
 8. Improve evaluation (king safety, ML tuning)
 1. Improve hash table eviction policy
-1. Optimize move generation (magic BB, partial movegen) and checking (xrays, pins, etc) 
-10. Fix Mate-in-N numbering
+1. Optimize move generation (magic BB, partial movegen) and legality checking (xrays, pins, etc) 
+10. Fix Mate-in-N numbering, ply adjustment
 7. Move ordering concerns (history heuristic)
 10. Internal iterative deepening: use low-depth search to find bestmove candidate if hash miss
 3. Create testing/benchmark suite

@@ -6,26 +6,28 @@
 
 #include <game/move.hpp>
 
+struct MoveScore {
+  Move mv;
+  int score;
+  MoveScore(Move mv0, int score0) : mv(mv0), score(score0) {}
+};
+
 struct PieceSquareTable {
   std::array<float, 64> arr;
 
-  float at(int index) {
-    return arr[index];
-  }
+  float at(int index) { return arr[index]; }
 
   void dump() {
     for (int row = 7; row >= 0; row--) {
       for (int col = 0; col < 8; col++) {
-        std::cout << (int) (10.0*arr[intFromPair(row, col)]) << "|";
+        std::cout << (int)(10.0 * arr[intFromPair(row, col)]) << "|";
       }
       std::cout << "\n";
     }
     std::cout << "\n";
   }
 
-  void set(int index, float score) {
-    arr[index] = score;
-  }
+  void set(int index, float score) { arr[index] = score; }
 };
 
 struct LazyMovegen {
@@ -137,7 +139,7 @@ struct HistoryTable {
   }
 
   void insert(Move mv, Color side, int depth) {
-    arr[side][mv.getSrcIndex()][mv.getDestIndex()] += depth * 2;
+    arr[side][mv.getSrcIndex()][mv.getDestIndex()] += depth * depth;
   }
 };
 

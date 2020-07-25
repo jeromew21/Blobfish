@@ -23,50 +23,33 @@ public:
 
   void think() {
     auto start = std::chrono::high_resolution_clock::now();
-    sendCommand("info string think() routine started");
+    //sendCommand("info string think() routine started");
     // iterative deepening
 
     int depth = 0;
     int nodeCount = 1;
-    int depthLimit = INTMAX;
-    int bestScore = INTMIN;
+    int depthLimit = SCORE_MAX;
+    int bestScore = SCORE_MIN;
     bestMove = board.legalMoves()[0];
+    std::vector<MoveScore> prevScores;
 
     for (depth = 0; depth < depthLimit; depth++) {
-      sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
+      //sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
       int score;
       // send principal variation move from previous
       Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove,
-                                   nodeCount, start);
+                                   nodeCount, start, prevScores);
       if (_notThinking) {
         debugLog("search interrupted");
-        if (!(calcMove == bestMove)) {
-          // either the score is better or worse.
-          if (score > bestScore) { // if we get a better score in stopped search
-            bestMove = calcMove;
-            bestScore = score;
-          } else {
-            // cry like a grandmaster: we are in trouble here...
-            // we don't know if the score is bad because we haven't found a
-            // better move yet also we don't know if we NEED to pick a different
-            // move because our PV move is refuted
-
-            // we chose to fallback if the score is refuted
-            // and take the best is it is beaten
-          }
-        } // else: same move as last layer
+        // either the score is better or worse.
+        if (score > bestScore) { // if we get a better score in stopped search
+          bestMove = calcMove;
+          bestScore = score;
+        }
         break;
       }
-      if (abs(score - INTMAX) < 30 || abs(score - INTMIN) < 30) {
+      if (abs(score - SCORE_MAX) < 30 || abs(score - SCORE_MIN) < 30) {
         bestMove = calcMove;
-        int plies = abs(abs(score) - INTMAX);
-        int y = (plies / 2) + 1;
-        // y += 1;
-        if (score < 0) {
-          y *= -1;
-        }
-        sendCommand("info string mate plies " + std::to_string(plies));
-        sendCommand("info score mate " + std::to_string(y));
         break;
       } else {               // it finishes at that layer
         bestMove = calcMove; // PV-move
@@ -120,7 +103,7 @@ public:
     }
     _notThinking = false;
     _stopKiller = false;
-    sendCommand("info string thread launched");
+    //sendCommand("info string thread launched");
     _task = std::thread(&UCIInterface::think, this);
     if (!inf) {
       _stopperTask = std::thread(&UCIInterface::delayStop, this, msecs);

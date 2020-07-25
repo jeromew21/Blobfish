@@ -20,8 +20,8 @@ const NodeType PV = 0;
 const NodeType Cut = 1;
 const NodeType All = 2;
 
-const int INTMIN = -10000000; // minimum value
-const int INTMAX = 10000000;
+const int SCORE_MIN = -10000000; // minimum value
+const int SCORE_MAX = 10000000;
 
 const int BOARD_STATE_ENTROPY = 9;
 
