@@ -4,6 +4,8 @@
 
 #include <game/board.hpp>
 
+u64 BACK_RANK[2];
+
 u64 BISHOP_MOVE_CACHE[64][4]; // outputs a bitboard w/ ray
 u64 ROOK_MOVE_CACHE[64][4];
 
@@ -65,6 +67,14 @@ u64 kingMoves(int i) {
   return KING_MOVE_CACHE[i];
 }
 
+u64 getBackRank(Color c) {
+  return BACK_RANK[c];
+}
+
+u64 rookMoves(int i, int d) {
+  return ROOK_MOVE_CACHE[i][d];
+}
+
 std::string moveToUCIAlgebraic(Move mv) {
   std::string result;
   result += squareName(mv.getSrc());
@@ -76,6 +86,13 @@ std::string moveToUCIAlgebraic(Move mv) {
 }
 
 void populateMoveCache() {
+  BACK_RANK[White] = u64FromIndex(0) | u64FromIndex(1) | u64FromIndex(2) |
+                     u64FromIndex(3) | u64FromIndex(4) | u64FromIndex(5) |
+                     u64FromIndex(6) | u64FromIndex(7);
+  BACK_RANK[Black] = u64FromIndex(56) | u64FromIndex(57) | u64FromIndex(58) |
+                     u64FromIndex(59) | u64FromIndex(60) | u64FromIndex(61) |
+                     u64FromIndex(62) | u64FromIndex(63);
+
   const int ROOK_MOVES[4][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
   const int BISHOP_MOVES[4][2] = {{1, -1}, {1, 1}, {-1, 1}, {-1, -1}};
 
@@ -238,7 +255,7 @@ void populateMoveCache() {
 
       r7 = 7 - distToClosestCorner(row, col);
       rr = distToClosestCorner(row, col);
-      r7 /= 14.0;
+      r7 /= 7.0;
       rr /= 7.0;
       PIECE_SQUARE_TABLE[W_King][0].set(index, r7);
       PIECE_SQUARE_TABLE[B_King][0].set(index, r7);
@@ -390,6 +407,62 @@ bool Board::isCheck() {
   Color color = turn();
   u64 kingBB = color == White ? bitboard[W_King] : bitboard[B_King];
   return _isUnderAttack(kingBB, flipColor(color));
+}
+
+float Board::kingSafety(Color c) {
+  //-5 for being next to one
+  // pawn shield +10 bonus for 3 pawns and bottom row
+  float score = 0.0;
+  // u64 friendlies = board.occupancy(c);
+  // u64 enemies = board.occupancy(flipColor(c));
+  u64 kingBB = c == White ? bitboard[W_King] : bitboard[B_King];
+  u64 pawns = c == White ? bitboard[W_Pawn] : bitboard[B_Pawn];
+  int index = u64ToIndex(kingBB);
+  int rookDir = c == White ? ROOK_UP : ROOK_DOWN;
+  u64 backRank = BACK_RANK[c];
+  int col = intToCol(index);
+  int row = intToRow(index);
+  bool isOnEdge = col % 7 == 0;
+
+  //Keep pawns in front of king
+  if (kingBB & backRank) {
+    float pawnShieldScore = hadd(kingMoves(index) & pawns);
+    if (isOnEdge) {
+      pawnShieldScore /= 2.0f;
+    } else {
+      pawnShieldScore /= 3.0f;
+    }
+    score += pawnShieldScore*1.0f;
+  }
+
+  //Penalize being on or next to open files
+  float openFilesPenalty = 0.0f;
+  if (!(rookMoves(index, rookDir) & pawns)) {
+    openFilesPenalty += 2.0f;
+  }
+  if (col == 0) {
+    int indexRight = intFromPair(row, col + 1);
+    if (!(rookMoves(indexRight, rookDir) & pawns)) {
+      openFilesPenalty += 1.0f;
+    }
+  } else if (col == 7) {
+    int indexLeft = intFromPair(row, col - 1);
+    if (!(rookMoves(indexLeft, rookDir) & pawns)) {
+      openFilesPenalty += 1.0f;
+    }
+  } else {
+    int indexLeft = intFromPair(row, col - 1);
+    int indexRight = intFromPair(row, col + 1);
+    if (!(rookMoves(indexLeft, rookDir) & pawns)) {
+      openFilesPenalty += 1.0f;
+    }
+    if (!(rookMoves(indexRight, rookDir) & pawns)) {
+      openFilesPenalty += 1.0f;
+    }
+  }
+  score -= openFilesPenalty*1.5f; //weight for open files
+
+  return score;
 }
 
 std::vector<Move> Board::produceUncheckMoves() {
@@ -988,10 +1061,12 @@ void Board::dump(bool debug) {
       /*std::cout << "(" << (int)mv.getTypeCode() << ")"
                 << " ";*/
     }
-    std::cout << "\nPiece scores:";
+    /*std::cout << "\nPiece scores:";
     for (PieceType p = 0; p < 12; p++) {
       std::cout << pieceToString(p) << ": " << pieceScoreEarlyGame[p] << "\n";
-    }
+    }*/
+    std::cout << "\nKing safety:";
+    std::cout << kingSafety(White) << ", " << kingSafety(Black) << "\n";
 
     /*std::cout << "\nState stack: ";
     for (int i = 0; i < (int)stack.getIndex(); i++) {

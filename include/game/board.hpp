@@ -9,6 +9,7 @@ void populateMoveCache();
 void initializeZobrist();
 std::string moveToUCIAlgebraic(Move mv);
 u64 kingMoves(int i);
+u64 rookMoves(int i, int d);
 
 class Board {
 private:
@@ -92,6 +93,8 @@ public:
   int material();
   std::string fen();
   BoardStatus status();
+
+  float kingSafety(Color c);
 
   Move lastMove();
 

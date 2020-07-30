@@ -15,6 +15,10 @@
 
 #define u64 uint64_t
 
+const int ROOK_UP = 0;
+const int ROOK_RIGHT = 1;
+const int ROOK_DOWN = 2;
+const int ROOK_LEFT = 3;
 
 const NodeType PV = 0; 
 const NodeType Cut = 1;

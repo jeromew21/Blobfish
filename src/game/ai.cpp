@@ -6,16 +6,9 @@ KillerTable kTable;
 HistoryTable hTable;
 CounterMoveTable cTable;
 
-u64 BACK_RANK[2];
 u64 FILES[64];
 
 void AI::init() {
-  BACK_RANK[White] = u64FromIndex(0) | u64FromIndex(1) | u64FromIndex(2) |
-                     u64FromIndex(3) | u64FromIndex(4) | u64FromIndex(5) |
-                     u64FromIndex(6) | u64FromIndex(7);
-  BACK_RANK[Black] = u64FromIndex(56) | u64FromIndex(57) | u64FromIndex(58) |
-                     u64FromIndex(59) | u64FromIndex(60) | u64FromIndex(61) |
-                     u64FromIndex(62) | u64FromIndex(63);
   for (int col = 0; col < 8; col++) {
     for (int row = 0; row < 8; row++) {
       u64 res = 0;
@@ -49,32 +42,6 @@ void AI::reset() {
 
 int AI::materialEvaluation(Board &board) { return board.material(); }
 
-float AI::kingSafety(Board &board, Color c) {
-  // open files -10 for being on one
-  //-5 for being next to one
-  // pawn shield +10 bonus for 3 pawns and bottom row
-  int score = 0;
-  // u64 friendlies = board.occupancy(c);
-  // u64 enemies = board.occupancy(flipColor(c));
-  u64 kingBB = c == White ? board.bitboard[W_King] : board.bitboard[B_King];
-  u64 pawns = c == White ? board.bitboard[W_Pawn] : board.bitboard[B_Pawn];
-  int index = u64ToIndex(kingBB);
-  // int col = u64ToCol(kingBB);
-  u64 file = FILES[index];
-  int pawnsAdj = 0;
-  if (pawns & file) {
-    score += 1;
-    pawnsAdj += hadd(kingMoves(index) & pawns);
-  }
-  if (kingBB & BACK_RANK[c]) {
-    pawnsAdj += hadd(kingMoves(index) & pawns);
-    score += 1;
-  }
-  score += pawnsAdj;
-
-  return score;
-}
-
 int AI::mobility(Board &board, Color c) { // Minor piece and king mobility
   int result = 0;
   u64 friendlies = board.occupancy(c);
@@ -104,16 +71,15 @@ int AI::evaluation(Board &board) {
   if (status == BoardStatus::BlackWin)
     return SCORE_MIN;
 
-  int score = materialEvaluation(board);
+  int score = 0;
 
   // mobility
   int mcwhite = mobility(board, White) - 31;
   int mcblack = mobility(board, Black) - 31;
-  score += mcwhite - mcblack;
 
   // Piece-squares
-  // Interpolate between 32 pieces and 2 pieces
-  float pieceCount = ((float)(hadd(board.occupancy()) - 2.0f)) / 32.0f;
+  // Interpolate between 32 pieces and 12 pieces
+  float pieceCount = (((float)(max(hadd(board.occupancy()), 12) - 12)) / 20.0f);
   float earlyWeight = pieceCount;
   float lateWeight = 1.0f - pieceCount;
   float pscoreEarly = 0.0f;
@@ -122,7 +88,7 @@ int AI::evaluation(Board &board) {
     pscoreEarly += board.pieceScoreEarlyGame[p];
     pscoreLate += board.pieceScoreLateGame[p];
   }
-  score += (int)(pscoreEarly * earlyWeight + pscoreLate * lateWeight);
+  float wpScore = pscoreEarly * earlyWeight + pscoreLate * lateWeight;
 
   pscoreEarly = 0.0f;
   pscoreLate = 0.0f;
@@ -130,10 +96,14 @@ int AI::evaluation(Board &board) {
     pscoreEarly += board.pieceScoreEarlyGame[p];
     pscoreLate += board.pieceScoreLateGame[p];
   }
-  score -= (int)(pscoreEarly * earlyWeight + pscoreLate * lateWeight);
+  float bpScore = pscoreEarly * earlyWeight + pscoreLate * lateWeight;
 
-  score += ((float)kingSafety(board, White) * earlyWeight);
-  score -= ((float)kingSafety(board, Black) * earlyWeight);
+  //combine features
+  score += materialEvaluation(board);
+  score += mcwhite - mcblack;
+  score += (wpScore - bpScore)*10.0f;
+  score += board.kingSafety(White) * 5.0f * earlyWeight;
+  score -= board.kingSafety(Black) * 5.0f * earlyWeight;
 
   return score;
 }
@@ -162,21 +132,23 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
   Move refMove;
 
-  auto found = table.find(node);
-  if (found != table.end()) {
-    if (found->first.depth > depth) {
-      NodeType typ = found->first.nodeType;
-      if (typ == All) {
-        // upper bound, the exact score might be less.
-        beta = found->second;
-      } else if (typ == Cut) {
-        // lower bound
+  if (depth > 1) {
+    auto found = table.find(node);
+    if (found != table.end()) {
+      if (found->first.depth > depth) {
+        NodeType typ = found->first.nodeType;
+        if (typ == All) {
+          // upper bound, the exact score might be less.
+          beta = found->second;
+        } else if (typ == Cut) {
+          // lower bound
+          refMove = found->first.bestMove;
+          alpha = found->second;
+        }
+      } else {
+        // Ideally a PV-node from prior iteration
         refMove = found->first.bestMove;
-        // alpha = found->second;
       }
-    } else {
-      // Ideally a PV-node from prior iteration
-      refMove = found->first.bestMove;
     }
   }
 
@@ -218,29 +190,19 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
         break;
       }
     }
-  } else {
-    for (int i = 0; i < (int)moves.size(); i++) {
-      if (moves[i] == refMove) {
-        moves.erase(moves.begin() + i);
-        moves.push_back(refMove);
-        break;
-      }
-    }
   }
 
   Move chosen = moves[moves.size() - 1]; // PV-move
+  outscore = alpha;
 
-  /*
-  std::cout << "info string moveorder";
+  /*std::cout << "info string moveorder";
   for (Move &mv : moves) {
       std::cout << board.moveToAlgebraic(mv) << " ";
   }
   std::cout << "\n";
   */
-  outscore = alpha;
 
   bool raisedAlpha = false;
-  NodeType nodeTyp = PV;
 
   prevScores.clear();
   bool nullWindow = false;
@@ -254,21 +216,19 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     int score;
     if (nullWindow) {
       score = -1 * AI::alphaBetaNega(board, depth, 0, -1 * alpha - 1,
-                                     -1 * alpha, stop, subtreeCount, Cut);
+                                     -1 * alpha, stop, subtreeCount, All);
       if (score > alpha) {
         score = -1 * AI::alphaBetaNega(board, depth, 0, -1 * beta, -1 * alpha,
                                        stop, subtreeCount, PV);
       }
     } else {
       score = -1 * AI::alphaBetaNega(board, depth, 0, -1 * beta, -1 * alpha,
-                                     stop, subtreeCount, nodeTyp);
+                                     stop, subtreeCount, PV);
     }
     board.unmakeMove();
 
     count += subtreeCount;
     prevScores.push_back(MoveScore(mv, subtreeCount));
-
-    nodeTyp = All; // predicted cut??
 
     if (stop) {
       outscore = alpha;
@@ -290,6 +250,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     }
   }
   if (!raisedAlpha) {
+    sendCommand("info string ROOT FAIL-LOW");
     outscore = alpha;
     return prevPv;
   }
@@ -303,8 +264,6 @@ void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
 
   board.makeMove(pvMove);
   int mc = 1;
-
-  depth = min(depth, 15);
 
   for (int k = 0; k < depth; k++) {
     TableNode nodeSearch(board, depth, PV);
@@ -410,16 +369,16 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
     return beta; // fail hard
 
   bool isCheck = board.isCheck();
-  
+
   if (alpha < baseline && !isCheck)
     alpha = baseline; // push alpha up to baseline
 
   u64 occ = board.occupancy();
 
-  bool deltaPrune = hadd(occ) > 12;
+  bool deltaPrune = true && hadd(occ) > 12;
 
   LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
-  Move mv = board.nextMove(movegen); //order by MVV-LVA
+  Move mv = board.nextMove(movegen); // order by MVV-LVA
 
   std::vector<Move> quietMoves;
 
@@ -442,12 +401,12 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
     bool isChecking =
         (kickoff == 0 || kickoff == 2) && board.isCheckingMove(mv);
     if (isChecking && isCapture) {
-      if (see < 0) {
+      if (see < 0 || isDeltaPrune) {
         isChecking = false;
       }
     }
 
-    if (((!isDeltaPrune && see >= 0) || isChecking) || isPromotion || isCheck) {
+    if ((!isDeltaPrune && see >= 0) || isChecking || isPromotion || isCheck) {
       board.makeMove(mv);
       int score = -1 * quiescence(board, depth, plyCount + 1, -1 * beta,
                                   -1 * alpha, stop, count, kickoff + 1);
@@ -559,7 +518,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   // NULL MOVE PRUNE
   if ((nullmove && !nodeIsCheck) &&
       (board.lastMove().notNull() && hadd(board.occupancy()) > 12)) {
-    int r = 3;
+    int r = 2;
     Move mv = Move::NullMove();
     board.makeMove(mv);
     int score = -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1,

@@ -140,8 +140,6 @@ void clearKillerTable();
 
 int mobility(Board &board, Color c);
 
-float kingSafety(Board &board, Color c);
-
 } // namespace AI
 
 #endif
