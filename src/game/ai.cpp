@@ -98,10 +98,10 @@ int AI::evaluation(Board &board) {
   }
   float bpScore = pscoreEarly * earlyWeight + pscoreLate * lateWeight;
 
-  //combine features
+  // combine features
   score += materialEvaluation(board);
   score += mcwhite - mcblack;
-  score += (wpScore - bpScore)*10.0f;
+  score += (wpScore - bpScore) * 10.0f;
   score += board.kingSafety(White) * 5.0f * earlyWeight;
   score -= board.kingSafety(Black) * 5.0f * earlyWeight;
 
@@ -516,9 +516,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   bool futilityPrune = true;
 
   // NULL MOVE PRUNE
-  if ((nullmove && !nodeIsCheck) &&
-      (board.lastMove().notNull() && hadd(board.occupancy()) > 12)) {
-    int r = 2;
+  if (nullmove && (!nodeIsCheck) && board.lastMove().notNull() &&
+      (hadd(board.occupancy()) > 12)) {
+    int r = 3;
     Move mv = Move::NullMove();
     board.makeMove(mv);
     int score = -1 * AI::alphaBetaNega(board, depth - 1 - r, plyCount + 1,
