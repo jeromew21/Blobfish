@@ -468,7 +468,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   static int hits_;
   static int total_;
   total_ += 1;
-  if (total_ % 100000 == 0) {
+  if (total_ % 80000 == 0) {
     sendCommand("info string hitrate " +
                 std::to_string((double)hits_ / (double)total_));
   }
@@ -578,6 +578,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   bool raisedAlpha = false;
 
   int moveCount = 0;
+  Move firstMove;
 
   while (true) {
     if (!seenAll) {
@@ -665,6 +666,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       }
     }
 
+    if (movesSearched == 0) {
+      firstMove = fmove;
+    }
+
     bool isCapture = fmove.getDest() & occ;
     bool isPromotion = fmove.isPromotion();
     bool isPawnMove =
@@ -742,6 +747,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   }
   table.insert(node, alpha); // store node
   if (raisedAlpha) {
+    pvTable.insert(node, alpha);
+  } else if (myNodeType == PV) {
+    //didn't raise alpha but was an expected PV-node: we have to insert move 1
+    node.bestMove = firstMove;
     pvTable.insert(node, alpha);
   }
   return alpha;
