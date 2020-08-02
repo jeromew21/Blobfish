@@ -74,41 +74,41 @@ public:
   }
 };
 
+struct MiniTableBucket {
+  u64 hash; //position hash
+  int depth; //number of plies to root saved
+  std::array<Move, 64> seq;
+};
+
 class MiniTable {
-  TableBucket _arr[MINI_TABLE_SIZE];
+  MiniTableBucket _arr[MINI_TABLE_SIZE];
 
 public:
   MiniTable() {}
 
-  TableBucket *find(TableNode &node) {
-    u64 hashval = node.hash;
+  MiniTableBucket *find(u64 hashval) {
     int bucketIndex = hashval % MINI_TABLE_SIZE;
-    TableBucket *bucket = _arr + bucketIndex;
-    if (bucket->first == node) {
+    MiniTableBucket *bucket = _arr + bucketIndex;
+    if (hashval == bucket->hash) {
       return bucket;
     }
     return NULL;
   }
 
-  TableBucket *end() { return NULL; }
+  MiniTableBucket *end() { return NULL; }
 
   void clear() {
     for (size_t i = 0; i < MINI_TABLE_SIZE; i++) {
-      _arr[i].first.hash = 0;
+      _arr[i].hash = 0;
     }
   }
 
-  void insert(TableNode &node, int score) {
-    u64 hashval = node.hash;
+  void insert(u64 hashval, int depth, std::array<Move, 64> *moveseq) {
     int bucketIndex = hashval % MINI_TABLE_SIZE;
-    TableBucket *bucket = _arr + bucketIndex;
-    if (node.hash == bucket->first.hash) {
-      if (node.depth < bucket->first.depth) {
-        return;
-      }
-    }
-    bucket->first = node;
-    bucket->second = score;
+    MiniTableBucket *bucket = _arr + bucketIndex;
+    bucket->hash = hashval;
+    bucket->seq = *moveseq;
+    bucket->depth = depth;
   }
 };
 

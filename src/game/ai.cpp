@@ -242,10 +242,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
       chosen = mv;
       outscore = alpha;
       node.bestMove = chosen;
-
       table.insert(node, alpha); // new PV found
-      pvTable.insert(node, alpha);
-
       sendPV(board, depth, chosen, count, alpha, start);
     }
   }
@@ -260,33 +257,19 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
 void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
                 std::chrono::_V2::system_clock::time_point start) {
+  //if (depth == 0)
+   // return;
   std::string pv = " pv " + moveToUCIAlgebraic(pvMove);
-
   board.makeMove(pvMove);
-  int mc = 1;
-
-  for (int k = 0; k < depth; k++) {
-    TableNode nodeSearch(board, depth, PV);
-    auto search = pvTable.find(nodeSearch);
-    if (search != pvTable.end()) {
-      TableNode node = search->first;
-      Move mv = node.bestMove;
-      pv += " ";
-      pv += moveToUCIAlgebraic(mv);
-      if (mv.isNull()) {
-        std::cout << score << " " << pv << "\n";
-        board.dump(true);
-        throw;
-      }
-      board.makeMove(mv);
-      mc++;
-    } else {
-      break;
+  MiniTableBucket *search = pvTable.find(board.zobrist());
+  if (search != pvTable.end()) {
+    for (int k = 0; k < search->depth; k++) {
+      Move mv = search->seq[k];
+      // if (mv.isNull()) break;
+      pv += " " + moveToUCIAlgebraic(mv);
     }
   }
-  for (int k = 0; k < mc; k++) {
-    board.unmakeMove();
-  }
+  board.unmakeMove();
 
   auto stop = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -311,7 +294,7 @@ void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
   }
 
   sendCommand(
-      "info depth " + std::to_string(depth + 1) + scoreStr + " time " +
+      "info depth " + std::to_string(depth+1) + scoreStr + " time " +
       std::to_string(time) + " nps " +
       std::to_string((int)((double)nodeCount / ((double)time / 1000.0))) +
       " nodes " + std::to_string(nodeCount) + pv);
@@ -331,16 +314,12 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
         depth + kickoff) { // searched already to a higher depth
       NodeType typ = found->first.nodeType;
       if (typ == All) {
-        // upper bound, the exact score might be less.
         beta = min(beta, found->second);
       } else if (typ == Cut) {
-        // lower bound
         alpha = max(alpha, found->second);
       }
       if (typ == PV || alpha >= beta) {
-        // make mate in n
         int score = found->second;
-        // finds mate in N from current position...so make absolute mate in N
         if (abs(score - SCORE_MAX) < 30 || abs(score - SCORE_MIN) < 30) {
           if (score < 0) {
             score += plyCount;
@@ -465,31 +444,54 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     return score;
   }
 
-  static int hits_;
+  /*static int hits_;
   static int total_;
   total_ += 1;
   if (total_ % 80000 == 0) {
     sendCommand("info string hitrate " +
                 std::to_string((double)hits_ / (double)total_));
-  }
+  }*/
 
   Move refMove;
 
   auto found = table.find(node);
   if (found != table.end()) {
-    hits_++;
+    // hits_++;
     if (found->first.depth >= depth) { // searched already to a higher depth
       NodeType typ = found->first.nodeType;
+      refMove = found->first.bestMove;
       if (typ == All) {
-        // upper bound, the exact score might be less.
         beta = min(beta, found->second);
       } else if (typ == Cut) {
-        // lower bound
-        refMove = found->first.bestMove;
         alpha = max(alpha, found->second);
       }
+      if (typ == PV) {
+        // reconstruct PV here
+        // have to append child pv to current node
+        MiniTableBucket *currentPVNode = pvTable.find(board.zobrist());
+        if (currentPVNode != pvTable.end()) {
+          if (currentPVNode->depth < depth) {
+            board.makeMove(refMove);
+            MiniTableBucket *childPVNode = pvTable.find(board.zobrist());
+            board.unmakeMove();
+            if (childPVNode != pvTable.end()) {
+              currentPVNode->seq[0] = refMove;
+              currentPVNode->depth = depth;
+              for (int i = 0; i < depth - 1; i++) {
+                currentPVNode->seq[i + 1] = childPVNode->seq[i];
+              }
+            } else {
+              std::cout << "child not found " 
+              << "refMove: " << moveToUCIAlgebraic(refMove) << "\n";
+
+            }
+          }
+        } else {
+          // std::cout << "parent not found\n";
+        }
+      }
+
       if (typ == PV || alpha >= beta) {
-        // make mate in n
         int score = found->second;
         // finds mate in N from current position...so make absolute mate in N
         if (abs(score - SCORE_MAX) < 30 || abs(score - SCORE_MIN) < 30) {
@@ -511,9 +513,9 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   bool nodeIsCheck = board.isCheck();
 
-  bool nullmove = true;
-  bool lmr = true;
-  bool futilityPrune = true;
+  bool nullmove = false;
+  bool lmr = false;
+  bool futilityPrune = false;
 
   // NULL MOVE PRUNE
   if (nullmove && (!nodeIsCheck) && board.lastMove().notNull() &&
@@ -701,7 +703,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
           subdepth = depth - 1;
         }
         score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
-                                       -1 * alpha, stop, count, PV);
+                                       -1 * alpha, stop, count, All);
       }
     } else {
       score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
@@ -709,7 +711,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       if (isReduced && score > alpha) {
         subdepth = depth - 1;
         score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
-                                       -1 * alpha, stop, count, PV);
+                                       -1 * alpha, stop, count, childNodeType);
       }
     }
 
@@ -739,19 +741,42 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       node.nodeType = PV;
       node.bestMove = fmove;
       alpha = score; // push up alpha
-      childNodeType = All;
     }
   }
   if (!raisedAlpha) {
     node.nodeType = All;
+    if (myNodeType == PV) {
+      // didn't raise alpha but was an expected PV-node: we have to insert move
+      // 1
+      node.nodeType = PV;
+      node.bestMove = firstMove;
+    }
   }
   table.insert(node, alpha); // store node
-  if (raisedAlpha) {
-    pvTable.insert(node, alpha);
-  } else if (myNodeType == PV) {
-    //didn't raise alpha but was an expected PV-node: we have to insert move 1
-    node.bestMove = firstMove;
-    pvTable.insert(node, alpha);
+  if (raisedAlpha || myNodeType == PV) {
+    std::array<Move, 64> movelist;
+    int mc = 0;
+    for (int k = 0; k < depth; k++) {
+      TableNode nodeSearch(board, depth, PV);
+      auto search = table.find(nodeSearch);
+      if (search != table.end()) {
+        TableNode node = search->first;
+        Move mv = node.bestMove;
+        if (mv.isNull()) {
+          //std::cout << "null move pushed, node type:" << node.nodeType <<"\n";
+        }
+        movelist[k] = mv;
+        board.makeMove(mv);
+        mc++;
+      } else {
+        depth = k;
+        break;
+      }
+    }
+    for (int k = 0; k < mc; k++) {
+      board.unmakeMove();
+    }
+    pvTable.insert(node.hash, depth, &movelist);
   }
   return alpha;
 }
