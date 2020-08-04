@@ -131,7 +131,7 @@ int quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
                std::atomic<bool> &stop, int &count, int kickoff);
 
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
-                  std::atomic<bool> &stop, int &count, NodeType myNodeType);
+                  std::atomic<bool> &stop, int &count, NodeType myNodeType, bool isSave);
 
 void init();
 void reset();
