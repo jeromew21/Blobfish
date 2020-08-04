@@ -227,6 +227,9 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
       score = -1 * AI::alphaBetaNega(board, depth, 0, -1 * beta, -1 * alpha,
                                      stop, subtreeCount, childNodeType, true);
       childNodeType = All;
+      if (refMove.notNull()) {
+        nullWindow = true;
+      }
     }
     board.unmakeMove();
 
@@ -700,7 +703,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     if (nullWindow) {
       score =
           -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * alpha - 1,
-                                 -1 * alpha, stop, count, All, isSave);
+                                 -1 * alpha, stop, count, All, false);
       if (score > alpha) {
         if (isReduced) {
           subdepth = depth - 1;
@@ -712,13 +715,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
                                      -1 * alpha, stop, count, childNodeType,
                                      isSave);
-      childNodeType = All;
-      if (isReduced && score > alpha) {
-        subdepth = depth - 1;
-        score = -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * beta,
-                                       -1 * alpha, stop, count, PV,
-                                       isSave);
+      if (refMove.notNull()) {
+        nullWindow = true;
       }
+      childNodeType = All;
     }
 
     board.unmakeMove();
@@ -754,15 +754,10 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
   if (isSave) {
     if (!raisedAlpha) {
       node.nodeType = All;
-      //node.bestMove = firstMove;
-      if (myNodeType == PV) {
-        // didn't raise alpha but was an expected PV-node: we have to insert
-        node.nodeType = PV;
-        node.bestMove = firstMove;
-      }
+      node.bestMove = firstMove;
     }
     table.insert(node, alpha); // store node
-    if (raisedAlpha || myNodeType == PV) {
+    if (raisedAlpha) {
       std::array<Move, 64> movelist;
       int mc = 0;
       for (int k = 0; k < depth; k++) {

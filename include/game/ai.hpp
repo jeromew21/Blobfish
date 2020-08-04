@@ -6,9 +6,9 @@
 #include <limits>
 #include <thread>
 
-const size_t TABLE_SIZE = 1048576;
+const size_t TABLE_SIZE = 4194304;
 
-const size_t MINI_TABLE_SIZE = 16384;
+const size_t MINI_TABLE_SIZE = 32768;
 
 struct TableNode {
   u64 hash;
