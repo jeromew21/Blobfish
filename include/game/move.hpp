@@ -14,7 +14,7 @@ const int KPromotion = 6;
 const int BPromotion = 7;
 const int RPromotion = 8;
 const int QPromotion = 9;
-}; // namespace MoveTypeCode
+} // namespace MoveTypeCode
 
 struct Move {
   uint16_t data;
@@ -67,7 +67,7 @@ struct Move {
   Move() : data(0) {}
 
   bool operator==(const Move &other) const { return data == other.data; }
-  
+
   bool operator!=(const Move &other) const { return data != other.data; }
 };
 
