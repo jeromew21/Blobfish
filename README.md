@@ -1,6 +1,6 @@
 # Blobfish
 
-Blobfish is a command-line only chess engine.
+Blobfish is a command-line only chess engine, but you can plug it into a GUI or lichess.
 
 # Rating progress
 
