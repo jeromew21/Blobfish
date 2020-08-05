@@ -64,8 +64,8 @@ public:
       // no overwrite
       members += 1;
     }
-    if (node.hash == bucket->first.hash) {
-      if (node.depth < bucket->first.depth) {
+    if (node.hash == bucket->first.hash) { //same position
+      if (node.depth < bucket->first.depth) { //already searched to higher depth
         return;
       }
     }

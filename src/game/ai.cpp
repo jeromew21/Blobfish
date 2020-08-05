@@ -679,7 +679,6 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     }
 
     bool isCapture = fmove.getDest() & occ;
-    bool isPromotion = fmove.isPromotion();
     bool isPawnMove =
         fmove.getSrc() & (board.bitboard[W_Pawn] & board.bitboard[B_Pawn]);
     bool isReduced = false;
@@ -687,7 +686,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     board.makeMove(fmove);
 
     int subdepth = depth - 1;
-    if (lmr && !nodeIsCheck && !isPromotion && !board.isCheck() && !isCapture &&
+    if (lmr && !nodeIsCheck && !board.isCheck() && !isCapture &&
         (myNodeType != PV) && depth > 2 && movesSearched > 4 && !isPawnMove) {
       int half = 4 + (moveCount - 4) / 2;
       if (movesSearched > half) {
@@ -703,7 +702,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     if (nullWindow) {
       score =
           -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * alpha - 1,
-                                 -1 * alpha, stop, count, All, false);
+                                 -1 * alpha, stop, count, All, isSave);
       if (score > alpha) {
         if (isReduced) {
           subdepth = depth - 1;
