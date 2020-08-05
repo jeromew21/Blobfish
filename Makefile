@@ -13,7 +13,7 @@
 # **************************************************************
 #
 
-CXX      := -clang++
+CXX      := -g++
 CXXFLAGS := -std=c++11 -pedantic-errors -Wall -Wextra -pthread -ffast-math -O3 -g
 BUILD    := ./build
 OBJ_DIR  := $(BUILD)/objects
