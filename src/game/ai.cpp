@@ -455,19 +455,19 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     return score;
   }
 
-  static int hits_;
+  /*static int hits_;
   static int total_;
   total_ += 1;
   if (total_ % 80000 == 0) {
     sendCommand("info string hitrate " +
                 std::to_string((double)hits_ / (double)total_));
-  }
+  }*/
 
   Move refMove;
 
   auto found = table.find(node);
   if (found != table.end()) {
-    hits_++;
+    //hits_++;
     if (found->first.depth >= depth) { // searched already to a higher depth
       NodeType typ = found->first.nodeType;
       refMove = found->first.bestMove;
