@@ -42,25 +42,6 @@ void AI::reset() {
 
 int AI::materialEvaluation(Board &board) { return board.material(); }
 
-int AI::mobility(Board &board, Color c) { // Minor piece and king mobility
-  int result = 0;
-  u64 friendlies = board.occupancy(c);
-  u64 pieces = c == White
-                   ? board.bitboard[W_Knight] | board.bitboard[W_Bishop] |
-                         board.bitboard[W_Rook]
-                   : board.bitboard[B_Knight] | board.bitboard[B_Bishop] |
-                         board.bitboard[B_Rook];
-  std::array<u64, 64> arr;
-  int count;
-
-  bitscanAll(arr, pieces, count);
-  for (int i = 0; i < count; i++) {
-    result += hadd(board.attackMap[u64ToIndex(arr[i])] & ~friendlies);
-  }
-
-  return result; // todo fix
-}
-
 int AI::evaluation(Board &board) {
   BoardStatus status = board.status();
 
@@ -74,8 +55,8 @@ int AI::evaluation(Board &board) {
   int score = 0;
 
   // mobility
-  int mcwhite = mobility(board, White) - 31;
-  int mcblack = mobility(board, Black) - 31;
+  int mcwhite = board.mobility(White) - 31;
+  int mcblack = board.mobility(Black) - 31;
 
   // Piece-squares
   // Interpolate between 32 pieces and 12 pieces

@@ -64,8 +64,9 @@ public:
       // no overwrite
       members += 1;
     }
-    if (node.hash == bucket->first.hash) { //same position
-      if (node.depth < bucket->first.depth) { //already searched to higher depth
+    if (node.hash == bucket->first.hash) {    // same position
+      if (node.depth < bucket->first.depth) { // already searched to higher
+                                              // depth
         return;
       }
     }
@@ -75,8 +76,8 @@ public:
 };
 
 struct MiniTableBucket {
-  u64 hash; //position hash
-  int depth; //number of plies to root saved
+  u64 hash;  // position hash
+  int depth; // number of plies to root saved
   std::array<Move, 64> seq;
 };
 
@@ -119,26 +120,25 @@ int flippedEval(Board &board);
 
 TranspositionTable &getTable();
 
-
 void sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
             std::chrono::_V2::system_clock::time_point start);
 
 Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore,
               Move prevPv, int &count,
-              std::chrono::_V2::system_clock::time_point start, std::vector<MoveScore>& prevScores);
+              std::chrono::_V2::system_clock::time_point start,
+              std::vector<MoveScore> &prevScores);
 
 int quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
                std::atomic<bool> &stop, int &count, int kickoff);
 
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
-                  std::atomic<bool> &stop, int &count, NodeType myNodeType, bool isSave);
+                  std::atomic<bool> &stop, int &count, NodeType myNodeType,
+                  bool isSave);
 
 void init();
 void reset();
 
 void clearKillerTable();
-
-int mobility(Board &board, Color c);
 
 } // namespace AI
 
