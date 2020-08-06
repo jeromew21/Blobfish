@@ -36,7 +36,7 @@ float Board::kingSafety(Color c) {
     } else {
       pawnShieldScore /= 3.0f;
     }
-    score += pawnShieldScore*1.0f;
+    score += pawnShieldScore*3.0f;
   }
 
   //Penalize being on or next to open files

@@ -103,7 +103,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
                   int &outscore, Move prevPv, int &count,
                   std::chrono::_V2::system_clock::time_point start,
                   std::vector<MoveScore> &prevScores) {
-  // IID
+
   TableNode node(board, depth, PV);
 
   auto moves = board.legalMoves();
@@ -138,20 +138,6 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     while (!prevScores.empty()) {
       moves.insert(moves.begin(), popMax(prevScores));
     }
-    for (int i = 0; i < (int)moves.size(); i++) {
-      if (moves[i] == refMove) {
-        moves.erase(moves.begin() + i);
-        moves.push_back(refMove);
-        break;
-      }
-    }
-    for (int i = 0; i < (int)moves.size(); i++) {
-      if (moves[i] == prevPv) {
-        moves.erase(moves.begin() + i);
-        moves.push_back(prevPv);
-        break;
-      }
-    }
   } else if (depth == 1) {
     std::vector<MoveScore> moveScores;
     for (Move mv : moves) {
@@ -164,12 +150,20 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     while (!moveScores.empty()) {
       moves.insert(moves.begin(), popMax(moveScores));
     }
-    for (int i = 0; i < (int)moves.size(); i++) {
-      if (moves[i] == refMove) {
-        moves.erase(moves.begin() + i);
-        moves.push_back(refMove);
-        break;
-      }
+  }
+
+  for (int i = 0; i < (int)moves.size(); i++) {
+    if (moves[i] == refMove) {
+      moves.erase(moves.begin() + i);
+      moves.push_back(refMove);
+      break;
+    }
+  }
+  for (int i = 0; i < (int)moves.size(); i++) {
+    if (moves[i] == prevPv) {
+      moves.erase(moves.begin() + i);
+      moves.push_back(prevPv);
+      break;
     }
   }
 
@@ -183,10 +177,9 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
   std::cout << "\n";
   */
 
-  bool raisedAlpha = false;
-
   prevScores.clear();
   bool nullWindow = false;
+  bool raisedAlpha = false;
 
   NodeType childNodeType = PV;
 
@@ -198,8 +191,9 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
     int score;
     if (nullWindow) {
-      score = -1 * AI::alphaBetaNega(board, depth, 0, -1 * alpha - 1,
-                                     -1 * alpha, stop, subtreeCount, All, true);
+      score =
+          -1 * AI::alphaBetaNega(board, depth, 0, -1 * alpha - 1, -1 * alpha,
+                                 stop, subtreeCount, All, false);
       if (score > alpha) {
         score = -1 * AI::alphaBetaNega(board, depth, 0, -1 * beta, -1 * alpha,
                                        stop, subtreeCount, PV, true);
@@ -248,7 +242,7 @@ void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
   board.makeMove(pvMove);
   MiniTableBucket *search = pvTable.find(board.zobrist());
   if (search != pvTable.end()) {
-    for (int k = 0; k < depth - 1; k++) {
+    for (int k = 0; k < search->depth; k++) {
       Move mv = search->seq[k];
       // if (mv.isNull()) break;
       pv += " " + moveToUCIAlgebraic(mv);
@@ -362,6 +356,8 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
       see = board.see(mv);
     }
     bool isPromotion = mv.isPromotion();
+    // bool isPawn = mv.getSrc() & (board.bitboard[W_Pawn] &
+    // board.bitboard[B_Pawn]);
     bool isDeltaPrune =
         deltaPrune && isCapture &&
         (baseline + 200 + MATERIAL_TABLE[board.pieceAt(mv.getDest())] < alpha);
@@ -448,7 +444,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
 
   auto found = table.find(node);
   if (found != table.end()) {
-    //hits_++;
+    // hits_++;
     if (found->first.depth >= depth) { // searched already to a higher depth
       NodeType typ = found->first.nodeType;
       refMove = found->first.bestMove;
@@ -683,7 +679,7 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
     if (nullWindow) {
       score =
           -1 * AI::alphaBetaNega(board, subdepth, plyCount + 1, -1 * alpha - 1,
-                                 -1 * alpha, stop, count, All, isSave);
+                                 -1 * alpha, stop, count, All, false);
       if (score > alpha) {
         if (isReduced) {
           subdepth = depth - 1;
@@ -731,12 +727,12 @@ int AI::alphaBetaNega(Board &board, int depth, int plyCount, int alpha,
       alpha = score; // push up alpha
     }
   }
+  if (!raisedAlpha) {
+    node.nodeType = All;
+    node.bestMove = firstMove;
+  }
+  table.insert(node, alpha); // store node
   if (isSave) {
-    if (!raisedAlpha) {
-      node.nodeType = All;
-      node.bestMove = firstMove;
-    }
-    table.insert(node, alpha); // store node
     if (raisedAlpha) {
       std::array<Move, 64> movelist;
       int mc = 0;
