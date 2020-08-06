@@ -6,9 +6,9 @@
 #include <limits>
 #include <thread>
 
-const size_t TABLE_SIZE = 4194304;
+const size_t TABLE_SIZE = 1048576;
 
-const size_t MINI_TABLE_SIZE = 32768;
+const size_t MINI_TABLE_SIZE = 16384;
 
 struct TableNode {
   u64 hash;
@@ -64,8 +64,8 @@ public:
       // no overwrite
       members += 1;
     }
-    if (node.hash == bucket->first.hash) { //same position
-      if (node.depth < bucket->first.depth) { //already searched to higher depth
+    if (node.hash == bucket->first.hash) {
+      if (node.depth < bucket->first.depth) {
         return;
       }
     }
@@ -74,41 +74,41 @@ public:
   }
 };
 
-struct MiniTableBucket {
-  u64 hash; //position hash
-  int depth; //number of plies to root saved
-  std::array<Move, 64> seq;
-};
-
 class MiniTable {
-  MiniTableBucket _arr[MINI_TABLE_SIZE];
+  TableBucket _arr[MINI_TABLE_SIZE];
 
 public:
   MiniTable() {}
 
-  MiniTableBucket *find(u64 hashval) {
+  TableBucket *find(TableNode &node) {
+    u64 hashval = node.hash;
     int bucketIndex = hashval % MINI_TABLE_SIZE;
-    MiniTableBucket *bucket = _arr + bucketIndex;
-    if (hashval == bucket->hash) {
+    TableBucket *bucket = _arr + bucketIndex;
+    if (bucket->first == node) {
       return bucket;
     }
     return NULL;
   }
 
-  MiniTableBucket *end() { return NULL; }
+  TableBucket *end() { return NULL; }
 
   void clear() {
     for (size_t i = 0; i < MINI_TABLE_SIZE; i++) {
-      _arr[i].hash = 0;
+      _arr[i].first.hash = 0;
     }
   }
 
-  void insert(u64 hashval, int depth, std::array<Move, 64> *moveseq) {
+  void insert(TableNode &node, int score) {
+    u64 hashval = node.hash;
     int bucketIndex = hashval % MINI_TABLE_SIZE;
-    MiniTableBucket *bucket = _arr + bucketIndex;
-    bucket->hash = hashval;
-    bucket->seq = *moveseq;
-    bucket->depth = depth;
+    TableBucket *bucket = _arr + bucketIndex;
+    if (node.hash == bucket->first.hash) {
+      if (node.depth < bucket->first.depth) {
+        return;
+      }
+    }
+    bucket->first = node;
+    bucket->second = score;
   }
 };
 
@@ -131,7 +131,7 @@ int quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
                std::atomic<bool> &stop, int &count, int kickoff);
 
 int alphaBetaNega(Board &board, int depth, int plyCount, int alpha, int beta,
-                  std::atomic<bool> &stop, int &count, NodeType myNodeType, bool isSave);
+                  std::atomic<bool> &stop, int &count, NodeType myNodeType);
 
 void init();
 void reset();
