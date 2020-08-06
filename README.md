@@ -18,7 +18,7 @@ Blobfish is a command-line only chess engine, but you can plug it into a GUI or 
 
 Idk man just make a branch or something
 
-# Todos (in order of priority)
+# Todos (NOT in order of priority)
 8. Improve evaluation (king safety, ML tuning)
 1. Improve hash table eviction policy
 1. Optimize move generation (magic BB, partial movegen) and legality checking (xrays, pins, etc) 
