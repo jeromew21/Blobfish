@@ -32,4 +32,5 @@ Idk man just make a branch or something
 6. Complete implementation of UCI interface (pondering, etc)
 6. Resolve exit during search issues
 1. Look into parallel search
+10. Fifty-move rule
 9. Look at MCTS / alternative search algorithms

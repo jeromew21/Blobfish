@@ -361,8 +361,8 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
     bool isDeltaPrune =
         deltaPrune && isCapture &&
         (baseline + 200 + MATERIAL_TABLE[board.pieceAt(mv.getDest())] < alpha);
-    bool isChecking =
-        (kickoff == 0 || kickoff == 2) && board.isCheckingMove(mv);
+    bool isCheckingMove = board.isCheckingMove(mv);
+    bool isChecking = (kickoff == 0 || kickoff == 2) && isCheckingMove;
     if (isChecking && isCapture) {
       if (see < 0 || isDeltaPrune) {
         isChecking = false;
@@ -380,28 +380,23 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
         raisedAlpha = true;
         alpha = score;
       }
-    } else {
+    } else if (isCheckingMove) {
       quietMoves.push_back(mv);
     }
     mv = board.nextMove(movegen);
   }
-
   if (!raisedAlpha) {
     for (Move mv : quietMoves) {
-      if (stop) {
+      if (stop)
         return SCORE_MIN;
-      }
-      if (board.isCheckingMove(mv)) {
-        board.makeMove(mv);
-        int score = -1 * quiescence(board, depth, plyCount + 1, -1 * beta,
-                                    -1 * alpha, stop, count, kickoff + 1);
-        board.unmakeMove();
-        if (score >= beta)
-          return beta;
-        if (score > alpha) {
-          alpha = score;
-        }
-      }
+      board.makeMove(mv);
+      int score = -1 * quiescence(board, depth, plyCount + 1, -1 * beta,
+                                  -1 * alpha, stop, count, kickoff + 1);
+      board.unmakeMove();
+      if (score >= beta)
+        return beta;
+      if (score > alpha)
+        alpha = score;
     }
   }
   return alpha;
