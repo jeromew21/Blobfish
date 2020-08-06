@@ -950,13 +950,13 @@ void Board::_setEpSquare(int sq) {
     // there is an en passant square already
     // we want to remove it
     int currentRow = u64ToRow(currentSq);
-    u64 hash = ZOBRIST_HASHES[currentRow];
+    u64 hash = ZOBRIST_HASHES[EP_HASH_POS + currentRow];
     _zobristHash ^= hash;
   }
   if (sq != -1) {
     // we are adding a new one
     int newRow = u64ToRow(sq);
-    u64 hash = ZOBRIST_HASHES[newRow];
+    u64 hash = ZOBRIST_HASHES[EP_HASH_POS + newRow];
     _zobristHash ^= hash;
   }
   boardState[EN_PASSANT_INDEX] = sq;
