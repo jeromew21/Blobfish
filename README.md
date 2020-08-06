@@ -2,12 +2,6 @@
 
 Blobfish is a command-line only chess engine, but you can plug it into a GUI or lichess.
 
-# Rating progress
-
-Tested in one-second games versus Stockfish with set ELO
-
-7/17/2020: ~1950
-
 # Running list of features
 1. UCI compatability (only partially implemented but tested with Lichess-Bot, and Cutechess)
 4. Alpha-beta pruning
@@ -19,6 +13,10 @@ Tested in one-second games versus Stockfish with set ELO
 6. Killer heuristic
 7. Countermove heuristic
 7. Threefold Repetition detection (though with the transposition table it gets very messy)
+
+# Contributing
+
+Idk man just make a branch or something
 
 # Todos (in order of priority)
 8. Improve evaluation (king safety, ML tuning)
