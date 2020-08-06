@@ -30,7 +30,7 @@ Move popMax(std::vector<MoveScore> &vec) {
     }
   }
   Move bm = vec[maxI].mv;
-  vec.erase(vec.begin() + maxI);
+  vec.erase(vec.begin() + maxI); //what's the point of this?
   return bm;
 }
 
@@ -76,6 +76,7 @@ int AI::evaluation(Board &board) {
   // mobility
   int mcwhite = mobility(board, White) - 31;
   int mcblack = mobility(board, Black) - 31;
+  int mcmuffin = 0;
 
   // Piece-squares
   // Interpolate between 32 pieces and 12 pieces
@@ -181,7 +182,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     }
     moves.clear();
     while (!moveScores.empty()) {
-      moves.insert(moves.begin(), popMax(moveScores));
+      moves.insert(moves.begin(), popMax(moveScores)); //* 
     }
     for (int i = 0; i < (int)moves.size(); i++) {
       if (moves[i] == refMove) {

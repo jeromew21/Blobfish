@@ -71,7 +71,7 @@ u64 getBackRank(Color c) {
   return BACK_RANK[c];
 }
 
-u64 rookMoves(int i, int d) {
+u64 rookMoves(int i, int d) { 
   return ROOK_MOVE_CACHE[i][d];
 }
 
@@ -142,7 +142,7 @@ void populateMoveCache() {
     u64 bitmap = 0;
     for (int dir = 0; dir < 4; dir++) {
       int y = y0 + ROOK_MOVES[dir][0];
-      int x = x0 + ROOK_MOVES[dir][1];
+      int x = x0 + ROOK_MOVES[dir][1]; //y before x?
       if (inBounds(y, x)) {
         bitmap |= u64FromPair(y, x);
       }
@@ -671,7 +671,7 @@ void Board::_removePiece(PieceType p, u64 location) {
   bitboard[p] &= ~location;
 }
 
-void Board::_addPiece(PieceType p, u64 location) {
+void Board::_addPiece(PieceType p, u64 location) { //any issue if piece of different type is already at location?
   // assume that location is empty
   // XOR in hash
   if (location & bitboard[p]) {
@@ -1515,7 +1515,7 @@ int Board::see(Move mv) {
 
 bool Board::verifyLegal(Move mv) {
   if (mv.getTypeCode() == MoveTypeCode::CastleLong ||
-      mv.getTypeCode() == MoveTypeCode::CastleShort) {
+      mv.getTypeCode() == MoveTypeCode::CastleShort) { 
     return true; // castling is verified on add
   }
   Color c = turn();
