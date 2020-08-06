@@ -67,7 +67,7 @@ struct Move {
   Move() : data(0) {}
 
   bool operator==(const Move &other) const { return data == other.data; }
-  
+
   bool operator!=(const Move &other) const { return data != other.data; }
 };
 

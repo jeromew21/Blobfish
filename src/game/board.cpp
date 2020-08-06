@@ -26,7 +26,8 @@ u64 CASTLE_SHORT_KING_DEST[2];
 u64 CASTLE_LONG_ROOK_DEST[2];
 u64 CASTLE_SHORT_ROOK_DEST[2];
 
-PieceSquareTable PIECE_SQUARE_TABLE[12][2]; //one for earlygame, one for endgame
+PieceSquareTable PIECE_SQUARE_TABLE[12][2]; // one for earlygame, one for
+                                            // endgame
 
 u64 ZOBRIST_HASHES[781];
 
@@ -63,17 +64,11 @@ void initializeZobrist() {
   debugLog("Initialized zobrist hashes");
 }
 
-u64 kingMoves(int i) {
-  return KING_MOVE_CACHE[i];
-}
+u64 kingMoves(int i) { return KING_MOVE_CACHE[i]; }
 
-u64 getBackRank(Color c) {
-  return BACK_RANK[c];
-}
+u64 getBackRank(Color c) { return BACK_RANK[c]; }
 
-u64 rookMoves(int i, int d) { 
-  return ROOK_MOVE_CACHE[i][d];
-}
+u64 rookMoves(int i, int d) { return ROOK_MOVE_CACHE[i][d]; }
 
 std::string moveToUCIAlgebraic(Move mv) {
   std::string result;
@@ -142,7 +137,7 @@ void populateMoveCache() {
     u64 bitmap = 0;
     for (int dir = 0; dir < 4; dir++) {
       int y = y0 + ROOK_MOVES[dir][0];
-      int x = x0 + ROOK_MOVES[dir][1]; //y before x?
+      int x = x0 + ROOK_MOVES[dir][1]; // y before x?
       if (inBounds(y, x)) {
         bitmap |= u64FromPair(y, x);
       }
@@ -241,13 +236,13 @@ void populateMoveCache() {
   }
   debugLog("Initialized move cache");
 
-  //init piece squares
+  // init piece squares
   for (int row = 0; row < 8; row++) {
     for (int col = 0; col < 8; col++) {
       int index = intFromPair(row, col);
-      //weight pawns lower and kings higher
-      float rr = ((float)row)/14.0;
-      float r7 = ((float)(7-row))/14.0;
+      // weight pawns lower and kings higher
+      float rr = ((float)row) / 14.0;
+      float r7 = ((float)(7 - row)) / 14.0;
       PIECE_SQUARE_TABLE[W_Pawn][0].set(index, rr);
       PIECE_SQUARE_TABLE[W_Pawn][1].set(index, rr);
       PIECE_SQUARE_TABLE[B_Pawn][0].set(index, r7);
@@ -261,7 +256,7 @@ void populateMoveCache() {
       PIECE_SQUARE_TABLE[B_King][0].set(index, r7);
       PIECE_SQUARE_TABLE[W_King][1].set(index, rr);
       PIECE_SQUARE_TABLE[B_King][1].set(index, rr);
-      
+
       float nmoves = hadd(KNIGHT_MOVE_CACHE[index]);
       nmoves /= 8.0;
       PIECE_SQUARE_TABLE[W_Knight][0].set(index, nmoves);
@@ -275,7 +270,7 @@ void populateMoveCache() {
         bmoves += hadd(BISHOP_MOVE_CACHE[index][d]);
         rmoves += hadd(ROOK_MOVE_CACHE[index][d]);
       }
-      float qmoves = bmoves+rmoves;
+      float qmoves = bmoves + rmoves;
       bmoves /= 21.0;
       rmoves /= 14.0;
       qmoves /= 54.0;
@@ -294,8 +289,6 @@ void populateMoveCache() {
     }
   }
 }
-
-
 
 void Board::_generatePseudoLegal() {
   // generate attack-defend sets
@@ -378,7 +371,7 @@ void Board::_generatePseudoLegal() {
   _pseudoStack.push_back(PseudoLegalData(attackMap, defendMap));
 }
 
-u64 Board::_isUnderAttack(u64 target) { 
+u64 Board::_isUnderAttack(u64 target) {
   u64 result = 0;
   std::array<int, 64> arr;
   int count;
@@ -542,7 +535,7 @@ BoardStatus Board::status() {
     // calculate
 
     if (hadd(bitboard[W_Pawn] | bitboard[B_Pawn] | bitboard[B_Queen] |
-              bitboard[W_Queen] | bitboard[W_Rook] | bitboard[B_Rook]) == 0) {
+             bitboard[W_Queen] | bitboard[W_Rook] | bitboard[B_Rook]) == 0) {
       // if either side has at least two minor pieces and one bishop
       // not a draw
       if (!((hadd(bitboard[W_Bishop] | bitboard[W_Knight]) >= 2 &&
@@ -605,7 +598,9 @@ void Board::_removePiece(PieceType p, u64 location) {
   bitboard[p] &= ~location;
 }
 
-void Board::_addPiece(PieceType p, u64 location) { //any issue if piece of different type is already at location?
+void Board::_addPiece(PieceType p,
+                      u64 location) { // any issue if piece of different type is
+                                      // already at location?
   // assume that location is empty
   // XOR in hash
   if (location & bitboard[p]) {
@@ -1349,7 +1344,8 @@ int Board::see(Move mv) {
   PieceType attacker = pieceAt(src);
   PieceType targetPiece = pieceAt(dest);
 
-  if (targetPiece == Empty) return -1;
+  if (targetPiece == Empty)
+    return -1;
 
   Color color = colorOf(attacker);
   u64 attackSet = _isUnderAttack(dest);
@@ -1449,7 +1445,7 @@ int Board::see(Move mv) {
 
 bool Board::verifyLegal(Move mv) {
   if (mv.getTypeCode() == MoveTypeCode::CastleLong ||
-      mv.getTypeCode() == MoveTypeCode::CastleShort) { 
+      mv.getTypeCode() == MoveTypeCode::CastleShort) {
     return true; // castling is verified on add
   }
   Color c = turn();
@@ -1679,8 +1675,8 @@ void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
   // set board, bitboards
   for (PieceType i = 0; i < 12; i++) {
     bitboard[i] = 0;
-    pieceScoreEarlyGame[i] = 0; 
-    pieceScoreLateGame[i] = 0; 
+    pieceScoreEarlyGame[i] = 0;
+    pieceScoreLateGame[i] = 0;
   }
   _zobristHash = 0; // ZERO OUT
 

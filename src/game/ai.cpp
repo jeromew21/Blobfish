@@ -193,14 +193,14 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     if (nullWindow) {
       score =
           -1 * AI::alphaBetaSearch(board, depth, 0, -1 * alpha - 1, -1 * alpha,
-                                 stop, subtreeCount, All, false);
+                                   stop, subtreeCount, All, false);
       if (score > alpha) {
         score = -1 * AI::alphaBetaSearch(board, depth, 0, -1 * beta, -1 * alpha,
-                                       stop, subtreeCount, PV, true);
+                                         stop, subtreeCount, PV, true);
       }
     } else {
       score = -1 * AI::alphaBetaSearch(board, depth, 0, -1 * beta, -1 * alpha,
-                                     stop, subtreeCount, childNodeType, true);
+                                       stop, subtreeCount, childNodeType, true);
       childNodeType = All;
       if (refMove.notNull()) {
         nullWindow = true;
@@ -408,8 +408,8 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
 }
 
 int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
-                      int beta, std::atomic<bool> &stop, int &count,
-                      NodeType myNodeType, bool isSave) {
+                        int beta, std::atomic<bool> &stop, int &count,
+                        NodeType myNodeType, bool isSave) {
   count++;
 
   bool nullmove = true;
@@ -506,7 +506,7 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
     board.makeMove(mv);
     int score =
         -1 * AI::alphaBetaSearch(board, depth - 1 - r, plyCount + 1, -1 * beta,
-                               -1 * alpha, stop, count, All, false);
+                                 -1 * alpha, stop, count, All, false);
     // quiescence(board, plyCount, -1*beta, -1*alpha, stop, count, 0);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
@@ -677,20 +677,21 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
     }
     int score;
     if (nullWindow) {
-      score =
-          -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1, -1 * alpha - 1,
-                                 -1 * alpha, stop, count, All, false);
+      score = -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1,
+                                       -1 * alpha - 1, -1 * alpha, stop, count,
+                                       All, false);
       if (score > alpha) {
         if (isReduced) {
           subdepth = depth - 1;
         }
-        score = -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1, -1 * beta,
-                                       -1 * alpha, stop, count, PV, isSave);
+        score =
+            -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1, -1 * beta,
+                                     -1 * alpha, stop, count, PV, isSave);
       }
     } else {
       score = -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1, -1 * beta,
-                                     -1 * alpha, stop, count, childNodeType,
-                                     isSave);
+                                       -1 * alpha, stop, count, childNodeType,
+                                       isSave);
       if (refMove.notNull()) {
         nullWindow = true;
       }

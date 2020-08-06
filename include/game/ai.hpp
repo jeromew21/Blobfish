@@ -132,8 +132,8 @@ int quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
                std::atomic<bool> &stop, int &count, int kickoff);
 
 int alphaBetaSearch(Board &board, int depth, int plyCount, int alpha, int beta,
-                  std::atomic<bool> &stop, int &count, NodeType myNodeType,
-                  bool isSave);
+                    std::atomic<bool> &stop, int &count, NodeType myNodeType,
+                    bool isSave);
 
 void init();
 void reset();
