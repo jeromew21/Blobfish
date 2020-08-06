@@ -30,7 +30,7 @@ public:
     int nodeCount = 1;
     int depthLimit = SCORE_MAX;
     int bestScore = SCORE_MIN;
-    bestMove = board.legalMoves()[0];
+    bestMove = Move::NullMove();
     std::vector<MoveScore> prevScores;
 
     for (depth = 0; depth < depthLimit; depth++) {

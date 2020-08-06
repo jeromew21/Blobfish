@@ -10,6 +10,7 @@ void initializeZobrist();
 std::string moveToUCIAlgebraic(Move mv);
 u64 kingMoves(int i);
 u64 rookMoves(int i, int d);
+u64 getBackRank(Color c);
 
 class Board {
 private:
@@ -71,8 +72,6 @@ public:
 
   int see(Move mv);
 
-  std::string vectorize(); // stdout a string rep
-
   // shortcut move gen
   std::vector<Move> produceUncheckMoves();
 
@@ -83,20 +82,22 @@ public:
   std::vector<Move> legalMoves(); // calls generate
   Color turn();
   u64 zobrist();
-
   bool isCheck();
+  Move lastMove();
 
   // costly calls
   PieceType pieceAt(u64 space);
   PieceType pieceAt(u64 space, Color color);
-  int material(Color color);
-  int material();
+
   std::string fen();
   BoardStatus status();
 
+  // eval features
   float kingSafety(Color c);
-
-  Move lastMove();
+  std::string vectorize(); // stdout a string rep
+  int material(Color color);
+  int material();
+  int mobility(Color c);
 
   // STATE CHANGERS
   void reset();
