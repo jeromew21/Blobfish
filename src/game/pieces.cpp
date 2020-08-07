@@ -2,14 +2,6 @@
 
 #include <game/pieces.hpp>
 
-PieceType pieceIndexFromColor(Color color) {
-  if (color == White) {
-    return 0;
-  } else {
-    return 6;
-  }
-}
-
 Color colorOf(PieceType piece) {
   if (piece == Empty) {
     return Neutral;

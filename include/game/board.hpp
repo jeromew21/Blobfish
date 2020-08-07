@@ -75,7 +75,8 @@ public:
   // shortcut move gen
   std::vector<Move> produceUncheckMoves();
 
-  bool isCheckingMove(Move mv, Color aColor, Color kingColor);
+  bool isCheckingMove(Move mv, Color kingColor);
+  bool isCheckingMove2(Move mv, Color kingColor);
   bool isCheckingMove(Move mv);
 
   // Important stuff

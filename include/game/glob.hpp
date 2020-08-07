@@ -20,7 +20,7 @@ const int ROOK_RIGHT = 1;
 const int ROOK_DOWN = 2;
 const int ROOK_LEFT = 3;
 
-const NodeType PV = 0; 
+const NodeType PV = 0;
 const NodeType Cut = 1;
 const NodeType All = 2;
 
@@ -84,22 +84,27 @@ inline u64 u64FromIndex(int i) { // fixed, should work
   return (1UL) << i;
 }
 
-int u64ToRow(u64 space);
-int u64ToCol(u64 space);
-
-int intToRow(int s);
-int intToCol(int s);
-
 inline int u64ToIndex(u64 space) { return bitscanForward(space); }
 
 void dump64(u64 x);
 
-bool inBounds(int y, int x);
-
 int hadd(u64 x);
 
-int max(int i1, int i2);
-int min(int i1, int i2);
+inline int max(int i1, int i2) {
+  if (i1 > i2) {
+    return i1;
+  } else {
+    return i2;
+  }
+}
+
+inline int min(int i1, int i2) {
+  if (i1 < i2) {
+    return i1;
+  } else {
+    return i2;
+  }
+}
 
 void bitscanAll(std::array<u64, 64> &arr, u64 x, int &outsize);    // hotspot
 void bitscanAllInt(std::array<int, 64> &arr, u64 x, int &outsize); // hotspot
@@ -108,5 +113,20 @@ int rand100();
 void srand100(int seed);
 
 std::vector<std::string> tokenize(std::string instring);
+
+inline bool inBounds(int y, int x) {
+  return (y >= 0 && y < 8) && (x >= 0 && x < 8);
+}
+
+inline int u64ToRow(u64 space) { return bitscanForward(space) / 8; }
+
+inline int u64ToCol(u64 space) { return bitscanForward(space) % 8; }
+
+inline int intToRow(int s) { return s / 8; }
+inline int intToCol(int s) { return s % 8; }
+
+inline u64 u64FromPair(int r, int c) { return u64FromIndex(r * 8 + c); }
+
+inline int intFromPair(int r, int c) { return r * 8 + c; }
 
 #endif

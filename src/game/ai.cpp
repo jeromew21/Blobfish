@@ -335,7 +335,6 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
     alpha = baseline; // push alpha up to baseline
 
   u64 occ = board.occupancy();
-
   bool deltaPrune = true && hadd(occ) > 12;
 
   LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
@@ -347,7 +346,7 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
 
   while (mv.notNull()) {
     if (stop) {
-      return SCORE_MIN; // mitigate horizon effect like this for now
+      return SCORE_MIN;
     }
 
     int see = -1;

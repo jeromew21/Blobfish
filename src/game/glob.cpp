@@ -121,7 +121,7 @@ std::string colorToString(Color c) {
   }
 }
 
-int hadd(u64 x) { // checked, should work
+int hadd(u64 x) { // TODO: throw SIMD at this
   int count = 0;
   while (x) {
     int k = bitscanForward(x);
@@ -130,30 +130,6 @@ int hadd(u64 x) { // checked, should work
     count++;
   }
   return count;
-  /*
- int count = 0;
- while (x) {
-     count++;
-     x &= x - 1; // reset LS1B
- }
- return count;
- */
-}
-
-int max(int i1, int i2) {
-  if (i1 > i2) {
-    return i1;
-  } else {
-    return i2;
-  }
-}
-
-int min(int i1, int i2) {
-  if (i1 < i2) {
-    return i1;
-  } else {
-    return i2;
-  }
 }
 
 void bitscanAllInt(std::array<int, 64> &arr, u64 x, int &outsize) {
@@ -195,22 +171,6 @@ void dump64(u64 x) { // Checked, should work
   }
   std::cout << "\n";
 }
-
-bool inBounds(int y, int x) { return (y >= 0 && y < 8) && (x >= 0 && x < 8); }
-
-int u64ToRow(u64 space) { return bitscanForward(space) / 8; }
-
-int u64ToCol(u64 space) { return bitscanForward(space) % 8; }
-
-int intToRow(int s) { return s / 8; }
-int intToCol(int s) { return s % 8; }
-
-u64 u64FromPair(int r, int c) {
-  int shift = r * 8 + c; // flatten index
-  return u64FromIndex(shift);
-}
-
-int intFromPair(int r, int c) { return r * 8 + c; }
 
 int distToClosestCorner(int r, int c) {
   int dc00 = abs(r - 0) + abs(c - 0);

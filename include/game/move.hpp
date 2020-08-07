@@ -27,18 +27,12 @@ struct Move {
 
   inline int getTypeCode() { return data & 15; }
 
-  PieceType getPromotingPiece() {
-    int moveType = getTypeCode();
-    PieceType promotion = moveType - 5;
-    return promotion;
+  inline PieceType getPromotingPiece() {
+    return getTypeCode() - 5;
   }
 
-  PieceType getPromotingPiece(Color c) {
-    PieceType promotion = getPromotingPiece();
-    if (c == Black) {
-      promotion += 6;
-    }
-    return promotion;
+  inline PieceType getPromotingPiece(Color c) {
+    return getPromotingPiece() + 6*c;
   }
 
   inline bool isPromotion() {
@@ -51,13 +45,11 @@ struct Move {
   inline int getDestIndex() { return (data >> 4) & 63; }
 
   inline u64 getSrc() {
-    int s = data >> 10;
-    return u64FromIndex(s);
+    return u64FromIndex(data >> 10);
   }
 
   inline u64 getDest() {
-    int d = (data >> 4) & 63; // keep top 6 bits
-    return u64FromIndex(d);
+    return u64FromIndex((data >> 4) & 63);
   }
 
   Move(int src0, int dest0, int typeCode) {

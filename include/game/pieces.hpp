@@ -22,6 +22,8 @@ const PieceType Empty = 12;
 const int MATERIAL_TABLE[13] = {100, 350, 351, 525, 1000, 10000,
                                 100, 350, 351, 525, 1000, 10000, 0};
 
+Color colorOf(PieceType piece);
+
 std::string pieceToString(PieceType piece);
 std::string pieceToStringAlph(PieceType piece);
 std::string pieceToStringFen(PieceType piece);
@@ -30,7 +32,8 @@ PieceType pieceFromString(std::string val);
 
 inline Color flipColor(Color color) { return 1 & (~color); }
 
-Color colorOf(PieceType piece);
-PieceType pieceIndexFromColor(Color color);
+inline PieceType pieceIndexFromColor(Color color) {
+  return 6 * color;
+}
 
 #endif

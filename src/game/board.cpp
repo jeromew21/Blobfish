@@ -1449,16 +1449,146 @@ bool Board::verifyLegal(Move mv) {
     return true; // castling is verified on add
   }
   Color c = turn();
-  return !isCheckingMove(mv, flipColor(c), c);
+  /*if (!isCheck()) {
+    bool a =
+  }*/
+  return !isCheckingMove(mv, c);
 }
 
 bool Board::isCheckingMove(Move mv) {
-  return isCheckingMove(mv, turn(), flipColor(turn()));
+  return isCheckingMove(mv, flipColor(turn()));
 }
 
-bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
+bool Board::isCheckingMove2(Move mv, Color kingColor) {
+  Color aColor = flipColor(kingColor);
+  Color moveColor = turn();
+  bool isOpposite = moveColor != kingColor;
+
+  PieceType king;
+  if (kingColor == White) {
+    king = W_King;
+  } else {
+    king = B_King;
+  }
+
+  if (mv.getTypeCode() == MoveTypeCode::CastleLong ||
+      mv.getTypeCode() == MoveTypeCode::CastleShort) {
+    if (isOpposite) {
+      // Create mask with castled position. Check if rook has access to enemy
+      // king
+      u64 rookPosition;
+      u64 kingPosition;
+      int k;
+      if (mv.getTypeCode() == MoveTypeCode::CastleLong) {
+        rookPosition = CASTLE_LONG_ROOK_DEST[moveColor];
+        kingPosition = CASTLE_LONG_KING_DEST[moveColor];
+        k = 0;
+      } else {
+        rookPosition = CASTLE_SHORT_ROOK_DEST[moveColor];
+        kingPosition = CASTLE_SHORT_KING_DEST[moveColor];
+        k = 1;
+      }
+      u64 occ = occupancy();
+      occ &= ~kingStartingPositions[moveColor];
+      occ |= kingPosition;
+      occ &= ~rookStartingPositions[moveColor][k];
+      occ |= rookPosition;
+      u64 attacks = _rookAttacks(rookPosition, occ);
+      return attacks & bitboard[king]
+                 ? true
+                 : false; // set to bool so we can compare output
+    } else {
+      return false; // castling can't put urself in check
+    }
+  } else if (mv.getTypeCode() == MoveTypeCode::EnPassant) {
+    // En passant discoveries: the stuff of nightmares
+  } else {
+    u64 src = mv.getSrc();
+    u64 dest = mv.getDest();
+    PieceType mover = pieceAt(src);
+    if (mover == W_King || mover == B_King) {
+      // does it move into attack from aColor
+      if (mover == king) {
+        // if it is the targeted king check if move into covered square
+        return defendMap[u64ToIndex(dest)] & occupancy(aColor) ? true : false;
+      } else {
+        // it's the other king, we just need to check if it's next to the king
+        return dest & KING_MOVE_CACHE[u64ToIndex(bitboard[king])] ? true
+                                                                  : false;
+      }
+    }
+    // check for pin
+    // run rays from king WITHOUT piece there;
+    u64 occ = occupancy();
+    u64 occWithout = occ & ~src;
+    u64 kingBB = bitboard[king];
+    PieceType offset = aColor == Black ? 6 : 0;
+    PieceType erook = W_Rook + offset;
+    PieceType ebishop = W_Bishop + offset;
+    PieceType equeen = W_Queen + offset;
+
+    for (int d = 0; d < 4; d++) {
+      u64 ray;
+      ray = _bishopRay(kingBB, d, occWithout);
+      if ((bitboard[ebishop] | bitboard[equeen]) & ray)
+        return true;
+      ray = _rookRay(kingBB, d, occWithout);
+      if ((bitboard[erook] | bitboard[equeen]) & ray)
+        return true;
+    }
+
+    if (isOpposite) {
+      // opposite: the mover color can attack the king. check for attacks based
+      // on piece type
+      PieceType pieceKind = mover % 6;
+      if (mv.isPromotion()) {
+        pieceKind = mv.getPromotingPiece();
+      }
+      u64 pieceMap = dest | (occ & ~src);
+      int destIndex = u64ToIndex(dest);
+      switch (pieceKind) {
+      case W_Pawn:
+        return PAWN_CAPTURE_CACHE[destIndex][moveColor] & kingBB ? true : false;
+      case W_Knight:
+        return KNIGHT_MOVE_CACHE[destIndex] & kingBB ? true : false;
+      case W_Bishop:
+        for (int d = 0; d < 4; d++) {
+          u64 ray = _bishopRay(dest, d, pieceMap);
+          if (ray & kingBB) {
+            return true;
+          }
+        }
+        return false;
+      case W_Rook:
+        for (int d = 0; d < 4; d++) {
+          u64 ray = _rookRay(dest, d, pieceMap);
+          if (ray & kingBB) {
+            return true;
+          }
+        }
+        return false;
+      case W_Queen:
+        for (int d = 0; d < 4; d++) {
+          u64 ray = _rookRay(dest, d, pieceMap) & _bishopRay(dest, d, pieceMap);
+          if (ray & kingBB) {
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+bool Board::isCheckingMove(Move mv, Color kingColor) {
   // is King Color's king under attack after move is made by myColor
-  bool result = false;
+  // Biggest hotspot
+
+  // case 1: aColor == kingColor. Only care about pinned pieces, or king moves
+  // into check case 2: aColor != kingColor. we care about discovered check and
+  // moves into check
+
   PieceType king = kingColor == White ? W_King : B_King;
 
   u64 src = mv.getSrc();
@@ -1467,133 +1597,87 @@ bool Board::isCheckingMove(Move mv, Color aColor, Color kingColor) {
   PieceType mover = pieceAt(src);
   int moveType = mv.getTypeCode();
 
+  Color aColor = flipColor(kingColor);
   Color moveColor = turn(); // in theory this could be diff
 
-  bitboard[mover] &= ~src;
+  u64 bitboardCopy[12];
+  for (int i = 0; i < 12; i++) {
+    bitboardCopy[i] = bitboard[i];
+  }
+
+  bitboardCopy[mover] &= ~src;
 
   if (moveType == MoveTypeCode::EnPassant) {
     if (mover == W_Pawn) {
       u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][Black];
-      bitboard[B_Pawn] &= ~capturedPawn;
-    }
-    if (mover == B_Pawn) {
+      bitboardCopy[B_Pawn] &= ~capturedPawn;
+    } else {
       u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][White];
-      bitboard[W_Pawn] &= ~capturedPawn;
+      bitboardCopy[W_Pawn] &= ~capturedPawn;
     }
-  } else {
-    if (destFormer != Empty) {
-      bitboard[destFormer] &= ~dest;
+  } else if (moveType == MoveTypeCode::CastleLong) {
+    if (mover == W_King) {
+      bitboardCopy[W_Rook] &= ~rookStartingPositions[White][0];
+      bitboardCopy[W_Rook] |= CASTLE_LONG_ROOK_DEST[White];
+    } else {
+      bitboardCopy[B_Rook] &= ~rookStartingPositions[Black][0];
+      bitboardCopy[B_Rook] |= CASTLE_LONG_ROOK_DEST[Black];
     }
+  } else if (moveType == MoveTypeCode::CastleShort) {
+    if (mover == W_King) {
+      bitboardCopy[W_Rook] &= ~rookStartingPositions[White][1];
+      bitboardCopy[W_Rook] |= CASTLE_SHORT_ROOK_DEST[White];
+    } else {
+      bitboardCopy[B_Rook] &= ~rookStartingPositions[Black][1];
+      bitboardCopy[B_Rook] |= CASTLE_SHORT_ROOK_DEST[Black];
+    }
+  } else if (destFormer != Empty) {
+    bitboardCopy[destFormer] &= ~dest;
   }
 
   // move to new location
   if (mv.isPromotion()) {
-    bitboard[mv.getPromotingPiece(moveColor)] |= dest;
+    bitboardCopy[mv.getPromotingPiece(moveColor)] |= dest;
   } else {
-    bitboard[mover] |= dest;
-  }
-
-  if (moveType == MoveTypeCode::CastleLong) {
-    if (mover == W_King) {
-      bitboard[W_Rook] &= ~rookStartingPositions[White][0];
-      bitboard[W_Rook] |= CASTLE_LONG_ROOK_DEST[White];
-    } else {
-      bitboard[B_Rook] &= ~rookStartingPositions[Black][0];
-      bitboard[B_Rook] |= CASTLE_LONG_ROOK_DEST[Black];
-    }
-  } else if (moveType == MoveTypeCode::CastleShort) {
-    if (mover == W_King) {
-      bitboard[W_Rook] &= ~rookStartingPositions[White][1];
-      bitboard[W_Rook] |= CASTLE_SHORT_ROOK_DEST[White];
-    } else {
-      bitboard[B_Rook] &= ~rookStartingPositions[Black][1];
-      bitboard[B_Rook] |= CASTLE_SHORT_ROOK_DEST[Black];
-    }
+    bitboardCopy[mover] |= dest;
   }
 
   // 2. Check if king is in line of fire
 
   // ray out, knight out, king out, pawn out
-  PieceType offset = 0;
-  if (aColor == Black) {
-    offset = 6;
-  }
+  PieceType offset = aColor * 6;
   PieceType eknight = W_Knight + offset;
   PieceType eking = W_King + offset;
+  PieceType epawn = W_Pawn + offset;
+
+  u64 kingBB = bitboardCopy[king];
+  int kingIndex = u64ToIndex(kingBB);
+
+  if (PAWN_CAPTURE_CACHE[kingIndex][kingColor] & bitboardCopy[epawn] ||
+      KNIGHT_MOVE_CACHE[kingIndex] & bitboardCopy[eknight] ||
+      KING_MOVE_CACHE[kingIndex] & bitboardCopy[eking]) {
+    return true;
+  }
+
   PieceType erook = W_Rook + offset;
   PieceType ebishop = W_Bishop + offset;
   PieceType equeen = W_Queen + offset;
-  PieceType epawn = W_Pawn + offset;
-
-  u64 kingBB = bitboard[king];
-  int kingIndex = u64ToIndex(kingBB);
-  u64 occ = occupancy();
-
-  if (PAWN_CAPTURE_CACHE[kingIndex][kingColor] & bitboard[epawn] ||
-      (KNIGHT_MOVE_CACHE[kingIndex] & bitboard[eknight] ||
-       KING_MOVE_CACHE[kingIndex] & bitboard[eking])) {
-    result = true;
-  }
+  u64 occ = bitboardCopy[0] | bitboardCopy[1] | bitboardCopy[2] |
+            bitboardCopy[3] | bitboardCopy[4] | bitboardCopy[5] |
+            bitboardCopy[6] | bitboardCopy[7] | bitboardCopy[8] |
+            bitboardCopy[9] | bitboardCopy[10] | bitboardCopy[11];
 
   for (int d = 0; d < 4; d++) {
-    u64 ray;
-    ray = _bishopRay(kingBB, d, occ);
-    if ((bitboard[ebishop] | bitboard[equeen]) & ray) {
-      result = true;
-      break;
+    if ((bitboardCopy[ebishop] | bitboardCopy[equeen]) &
+        _bishopRay(kingBB, d, occ)) {
+      return true;
     }
-    ray = _rookRay(kingBB, d, occ);
-    if ((bitboard[erook] | bitboard[equeen]) & ray) {
-      result = true;
-      break;
+    if ((bitboardCopy[erook] | bitboardCopy[equeen]) &
+        _rookRay(kingBB, d, occ)) {
+      return true;
     }
   }
-
-  // 3. Revert bitboards
-
-  if (moveType == MoveTypeCode::CastleLong ||
-      moveType == MoveTypeCode::CastleShort) {
-    if (mover == W_King) {
-      if (moveType == MoveTypeCode::CastleLong) {
-        bitboard[W_Rook] &= ~CASTLE_LONG_ROOK_DEST[White];
-        bitboard[W_Rook] |= rookStartingPositions[White][0];
-      } else {
-        bitboard[W_Rook] &= ~CASTLE_SHORT_ROOK_DEST[White];
-        bitboard[W_Rook] |= rookStartingPositions[White][1];
-      }
-    } else {
-      if (moveType == MoveTypeCode::CastleLong) {
-        bitboard[B_Rook] &= ~CASTLE_LONG_ROOK_DEST[Black];
-        bitboard[B_Rook] |= rookStartingPositions[Black][0];
-      } else {
-        bitboard[B_Rook] &= ~CASTLE_SHORT_ROOK_DEST[Black];
-        bitboard[B_Rook] |= rookStartingPositions[Black][1];
-      }
-    }
-  }
-
-  // move piece to old src
-  bitboard[mover] |= src;
-
-  // mask out dest
-  if (mv.isPromotion()) {
-    bitboard[mv.getPromotingPiece(moveColor)] &= ~dest;
-  } else {
-    bitboard[mover] &= ~dest;
-  }
-
-  // restore dest
-  if (moveType == MoveTypeCode::EnPassant) { // instead of restoring at capture
-                                             // location, restore one above
-    if (mover == W_Pawn) {
-      bitboard[B_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(dest)][Black];
-    } else {
-      bitboard[W_Pawn] |= PAWN_MOVE_CACHE[u64ToIndex(dest)][White];
-    }
-  } else if (destFormer != Empty) {
-    bitboard[destFormer] |= dest;
-  }
-  return result;
+  return false;
 }
 
 std::vector<Move> Board::legalMoves() {
