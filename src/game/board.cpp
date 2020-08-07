@@ -581,42 +581,41 @@ u64 Board::zobrist() { return _zobristHash; }
 void Board::_removePiece(PieceType p, u64 location) {
   // location may be empty; if so, do nothing
   // XOR out hash
-  if (location & bitboard[p]) {
-    int ind = u64ToIndex(location);
-    u64 hash = ZOBRIST_HASHES[64 * p + ind];
-    _zobristHash ^= hash;
-    pieceScoreEarlyGame[p] -= PIECE_SQUARE_TABLE[p][0].at(ind);
-    pieceScoreLateGame[p] -= PIECE_SQUARE_TABLE[p][1].at(ind);
-  } else {
+  // if (location & bitboard[p]) {
+  int ind = u64ToIndex(location);
+  u64 hash = ZOBRIST_HASHES[64 * p + ind];
+  _zobristHash ^= hash;
+  pieceScoreEarlyGame[p] -= PIECE_SQUARE_TABLE[p][0].at(ind);
+  pieceScoreLateGame[p] -= PIECE_SQUARE_TABLE[p][1].at(ind);
+  /*} else {
     std::cout << pieceToString(p) << "\n";
     dump64(location);
     dump64(bitboard[p]);
     dump(true);
     debugLog("bad piecerem");
     throw;
-  }
+  }*/
   bitboard[p] &= ~location;
 }
 
 void Board::_addPiece(PieceType p,
                       u64 location) { // any issue if piece of different type is
                                       // already at location?
-  // assume that location is empty
-  // XOR in hash
-  if (location & bitboard[p]) {
-    std::cout << pieceToString(p) << "\n";
-    dump64(location);
-    dump64(bitboard[p]);
-    dump(true);
-    debugLog("bad pieceadd");
-    throw;
-  } else {
-    int ind = u64ToIndex(location);
-    u64 hash = ZOBRIST_HASHES[64 * p + ind];
-    _zobristHash ^= hash;
-    pieceScoreEarlyGame[p] += PIECE_SQUARE_TABLE[p][0].at(ind);
-    pieceScoreLateGame[p] += PIECE_SQUARE_TABLE[p][1].at(ind);
-  }
+                                      // assume that location is empty
+                                      // XOR in hash
+                                      /*if (location & bitboard[p]) {
+                                        std::cout << pieceToString(p) << "\n";
+                                        dump64(location);
+                                        dump64(bitboard[p]);
+                                        dump(true);
+                                        debugLog("bad pieceadd");
+                                        throw;
+                                      } else {*/
+  int ind = u64ToIndex(location);
+  u64 hash = ZOBRIST_HASHES[64 * p + ind];
+  _zobristHash ^= hash;
+  pieceScoreEarlyGame[p] += PIECE_SQUARE_TABLE[p][0].at(ind);
+  pieceScoreLateGame[p] += PIECE_SQUARE_TABLE[p][1].at(ind);
   bitboard[p] |= location;
 }
 
@@ -827,7 +826,8 @@ void Board::unmakeMove() {
   boardState[LAST_MOVED_INDEX] = node.data[LAST_MOVED_INDEX];
   boardState[LAST_CAPTURED_INDEX] = node.data[LAST_CAPTURED_INDEX];
   boardState[HAS_REPEATED_INDEX] = node.data[HAS_REPEATED_INDEX];
-  _status = BoardStatus::NotCalculated;
+
+  _status = BoardStatus::Playing; //do we ever go past?
 
   stack.pop();
 
@@ -1019,7 +1019,7 @@ void Board::dump(bool debug) {
   }
 }
 
-void Board::generateSpecialMoves(std::vector<Move> &sbuffer) {
+void Board::generateSpecialMoves(SpecialMoveBuffer &sbuffer) {
   // fill specialbuffer
   // pawn moves: en passant and double moves
   // castles
@@ -1631,7 +1631,7 @@ bool Board::isCheckingMove(Move mv, Color kingColor) {
       bitboardCopy[B_Rook] &= ~rookStartingPositions[Black][1];
       bitboardCopy[B_Rook] |= CASTLE_SHORT_ROOK_DEST[Black];
     }
-  } else if (destFormer != Empty) {
+  } else if (destFormer != Empty) { // is capture
     bitboardCopy[destFormer] &= ~dest;
   }
 

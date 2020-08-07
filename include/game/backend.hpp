@@ -30,10 +30,38 @@ struct PieceSquareTable {
   void set(int index, float score) { arr[index] = score; }
 };
 
-struct LazyMovegen {
+struct SpecialMoveBuffer {
+  std::array<Move, 32> data; // Might overflow if given a crazy position.
+  // Haven't done the math but shouldn't happen in any legal position.
+  int size_;
 
+  SpecialMoveBuffer() { size_ = 0; }
+
+  Move back() {
+    if (size_ > 0) {
+      return data[size_ - 1];
+    } else {
+      throw;
+    }
+  }
+
+  Move pop_back() {
+    Move mv = back();
+    size_ -= 1;
+    return mv;
+  }
+
+  int size() { return size_; }
+
+  void push_back(Move mv) {
+    data[size_] = mv;
+    size_ += 1;
+  }
+};
+
+struct LazyMovegen {
   bool hasGenSpecial;
-  std::vector<Move> sbuffer;
+  SpecialMoveBuffer sbuffer;
 
   std::array<int, 64> srcList;
   int srcIndex;
