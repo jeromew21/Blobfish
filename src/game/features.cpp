@@ -69,6 +69,26 @@ float Board::kingSafety(Color c) {
   return score;
 }
 
+float Board::tropism(u64 square, Color enemyColor) {
+  static const int weights[6] = {0, 1, 1, 2, 3, 0};
+  int row = u64ToRow(square);
+  int col = u64ToRow(square);
+  int sum = 0;
+  std::array<int, 64> arr;
+  int count;
+  for (PieceType p = 1; p < 5; p++) {
+    u64 bb = bitboard[p + 6*enemyColor];
+    bitscanAllInt(arr, bb, count);
+    for (int i = 0; i < count; i++) {
+      int index = arr[i];
+      int eRow = intToRow(index);
+      int eCol = intToCol(index);
+      sum += (abs(eRow - row) + abs(eCol - col)) * weights[p];
+    }  
+  }
+  return -1.0f*sum;
+}
+
 int Board::mobility(Color c) { // Minor piece and rook mobility
   int result = 0;
   u64 friendlies = occupancy(c);

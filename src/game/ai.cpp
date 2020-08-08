@@ -85,7 +85,8 @@ int AI::evaluation(Board &board) {
   score += (wpScore - bpScore) * 10.0f;
   score += board.kingSafety(White) * 5.0f * earlyWeight;
   score -= board.kingSafety(Black) * 5.0f * earlyWeight;
-
+  score += board.tropism(board.bitboard[W_King], Black) * 0.03f * earlyWeight;
+  score -= board.tropism(board.bitboard[B_King], White) * 0.03f * earlyWeight;
   return score;
 }
 
@@ -407,7 +408,6 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   count++;
 
   bool nullmove = true;
-  bool lmr = true;
   bool futilityPrune = true;
 
   BoardStatus status = board.status();
@@ -649,31 +649,18 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
       firstMove = fmove;
     }
 
-    bool isCapture = fmove.getDest() & occ;
-    bool isPawnMove =
-        fmove.getSrc() & (board.bitboard[W_Pawn] & board.bitboard[B_Pawn]);
     bool isReduced = false;
 
     board.makeMove(fmove);
 
     int subdepth = depth - 1;
-    if (lmr && !nodeIsCheck && !board.isCheck() && !isCapture &&
-        (myNodeType != PV) && depth > 2 && movesSearched > 4 && !isPawnMove) {
-      int half = 4 + (moveCount - 4) / 2;
-      if (movesSearched > half) {
-        subdepth = depth - 3;
-      } else {
-        subdepth = depth - 2;
-      }
-      isReduced = true;
-    } else if (board.isCheck()) {
+    if (board.isCheck()) {
       subdepth = depth; // Check ext
     }
     int score;
     if (nullWindow) {
-      score = -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1,
-                                       -1 * alpha - 1, -1 * alpha, stop, count,
-                                       All, false);
+      score = -1 * AI::zeroWindowSearch(board, subdepth, plyCount + 1,
+                                        -1 * alpha, stop, count, Cut);
       if (score > alpha) {
         if (isReduced) {
           subdepth = depth - 1;
@@ -702,9 +689,9 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
     if (score >= beta) { // our move is better than beta, so this node is cut
       node.nodeType = Cut;
       node.bestMove = fmove;
-      if (isSave) {
-        table.insert(node, beta);
-      }
+
+      // TODO: Is this correct?
+      table.insert(node, beta);
 
       if (fmove.getDest() & ~occ) {
         hTable.insert(fmove, board.turn(), depth);
@@ -737,9 +724,6 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
         if (search != table.end()) {
           TableNode node = search->first;
           Move mv = node.bestMove;
-          if (mv.isNull()) {
-            // std::cout << "null move pushed" << "\n";
-          }
           movelist[k] = mv;
           board.makeMove(mv);
           mc++;
@@ -754,5 +738,264 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
       pvTable.insert(node.hash, depth, &movelist);
     }
   }
+  return alpha;
+}
+
+int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
+                         std::atomic<bool> &stop, int &count,
+                         NodeType myNodeType) {
+  count++;
+
+  int alpha = beta - 1;
+
+  bool nullmove = true;
+  bool lmr = true;
+  bool futilityPrune = true;
+
+  BoardStatus status = board.status();
+  TableNode node(board, depth, myNodeType);
+
+  if (status != BoardStatus::Playing) {
+    int score = AI::flippedEval(board); // store?
+    if (score == SCORE_MIN) {
+      score += plyCount;
+    } // would not be at score max
+    return score;
+  }
+
+  if (depth <= 0) {
+    int score = quiescence(board, depth, plyCount, alpha, beta, stop, count, 0);
+    return score;
+  }
+  
+  Move refMove;
+
+  auto found = table.find(node);
+  if (found != table.end()) {
+    // hits_++;
+    if (found->first.depth >= depth) { // searched already to a higher depth
+      NodeType typ = found->first.nodeType;
+      refMove = found->first.bestMove;
+      if (typ == All) {
+        beta = min(beta, found->second);
+      } else if (typ == Cut) {
+        alpha = max(alpha, found->second);
+      }
+
+      if (typ == PV || alpha >= beta) {
+        int score = found->second;
+        // finds mate in N from current position...so make absolute mate in N
+        if (abs(score - SCORE_MAX) < 30 || abs(score - SCORE_MIN) < 30) {
+          if (score < 0) {
+            score += plyCount;
+          } else {
+            score -= plyCount;
+          }
+        }
+        return score;
+      }
+    } else {
+      // Ideally a PV-node from prior iteration
+      refMove = found->first.bestMove;
+    }
+  }
+
+  bool nodeIsCheck = board.isCheck();
+
+  // NULL MOVE PRUNE
+  if (nullmove && (!nodeIsCheck) && board.lastMove().notNull() &&
+      (hadd(board.occupancy()) > 12)) {
+    int r = 3;
+    Move mv = Move::NullMove();
+    board.makeMove(mv);
+    int score = -1 * AI::zeroWindowSearch(board, depth - 1 - r, plyCount + 1,
+                                          -1 * alpha, stop, count, All);
+    board.unmakeMove();
+    if (score >= beta) { // our move is better than beta, so this node is cut
+                         // off
+      node.nodeType = Cut;
+      node.bestMove = Move::NullMove();
+      table.insert(node, beta);
+      return beta; // fail hard
+    }
+  }
+
+  int fscore = 0;
+  if (depth == 1 && futilityPrune) {
+    fscore = AI::flippedEval(board);
+  }
+
+  u64 occ = board.occupancy();
+
+  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
+
+  std::vector<Move> hashMoves;
+  std::vector<Move> posCaptures;
+  std::vector<Move> eqCaptures;
+  std::vector<Move> heuristics;
+  std::vector<Move> other;
+
+  std::vector<MoveScore> otherWScore;
+
+  int phase = 0;
+  // priority:
+  // 0) hashmove (1)
+  // 1) winning caps (?)
+  // 2) heuristic moves: killer and counter move (2)
+  // 3) equal caps (?)
+  // 4) losingCaps (?)
+  // 5) all other, sorted by history heuristic
+
+  int movesSearched = 0;
+  Move lastMove = board.lastMove();
+  bool seenAll = false;
+  std::vector<Move> allMoves;
+
+  NodeType childNodeType = All;
+
+  // bool foundMove = refMove.notNull(); // iid
+
+  int moveCount = 0;
+  Move firstMove;
+
+  while (true) {
+    if (!seenAll) {
+      Move mv = board.nextMove(movegen);
+      if (mv.isNull()) {
+        seenAll = true;
+        allMoves.clear();
+        allMoves.reserve(hashMoves.size() + posCaptures.size() +
+                         eqCaptures.size() + heuristics.size() + other.size());
+        // history sort
+        Color tn = board.turn();
+        for (Move mv : other) {
+          otherWScore.push_back(MoveScore(mv, hTable.get(mv, tn)));
+        }
+        allMoves.insert(allMoves.end(), eqCaptures.begin(), eqCaptures.end());
+        allMoves.insert(allMoves.end(), heuristics.begin(), heuristics.end());
+        allMoves.insert(allMoves.end(), posCaptures.begin(), posCaptures.end());
+        allMoves.insert(allMoves.end(), hashMoves.begin(), hashMoves.end());
+      } else {
+        // sort move into correct bucket
+        moveCount++;
+        u64 dest = mv.getDest();
+        if (mv == refMove) {
+          hashMoves.push_back(mv);
+        } else if (dest & occ) {
+          int see = board.see(mv);
+          if (see > 0) {
+            posCaptures.push_back(mv);
+          } else if (see == 0) {
+            eqCaptures.push_back(mv);
+          } else {
+            other.push_back(mv);
+          }
+        } else if (kTable.contains(mv, plyCount)) {
+          heuristics.push_back(mv);
+        } else if (cTable.contains(lastMove, mv, board.turn())) {
+          heuristics.push_back(mv);
+        } else {
+          other.push_back(mv);
+        }
+      }
+    }
+
+    Move fmove;
+
+    if (seenAll) { // we have seen all the moves.
+      if (allMoves.size() > 0) {
+        fmove = allMoves.back();
+        allMoves.pop_back();
+      } else if (otherWScore.size() > 0) {
+        fmove = popMax(otherWScore);
+      } else {
+        break;
+      }
+    } else {
+      // grab depending on phase
+      if (phase == 0) {
+        if (hashMoves.size() > 0) {
+          fmove = hashMoves.back();
+          hashMoves.pop_back();
+          phase = 1;
+        } else {
+          continue;
+        }
+      } else if (phase == 1) {
+        // looking for pos captures
+        if (posCaptures.size() > 0) {
+          fmove = posCaptures.back();
+          posCaptures.pop_back();
+        } else {
+          continue;
+        }
+      } else {
+        continue;
+      }
+    }
+
+    if ((futilityPrune && depth == 1) && movesSearched >= 1) {
+      if ((fmove.getDest() & ~occ && fmove != refMove) &&
+          (!board.isCheckingMove(fmove) && !nodeIsCheck)) {
+        if (fscore + 900 < alpha) {
+          // skip this move
+          continue;
+        }
+      }
+    }
+
+    if (movesSearched == 0) {
+      firstMove = fmove;
+    }
+
+    bool isCapture = fmove.getDest() & occ;
+    bool isPawnMove =
+        fmove.getSrc() & (board.bitboard[W_Pawn] & board.bitboard[B_Pawn]);
+    bool isReduced = false;
+
+    board.makeMove(fmove);
+
+    int subdepth = depth - 1;
+    if (lmr && !nodeIsCheck && !board.isCheck() && !isCapture &&
+        (myNodeType != PV) && depth > 2 && movesSearched > 4 && !isPawnMove) {
+      int half = 4 + (moveCount - 4) / 2;
+      if (movesSearched > half) {
+        subdepth = depth - 3;
+      } else {
+        subdepth = depth - 2;
+      }
+      isReduced = true;
+    } else if (board.isCheck()) {
+      subdepth = depth; // Check ext
+    }
+    int score;
+
+    score = -1 * AI::zeroWindowSearch(board, subdepth, plyCount + 1, -1 * alpha,
+                                      stop, count, childNodeType);
+
+    board.unmakeMove();
+    movesSearched++;
+
+    if (stop) { // if stopped in subcall, then we want to ignore it
+      return alpha;
+    }
+
+    if (score >= beta) { // our move is better than beta, so this node is cut
+      node.nodeType = Cut;
+      node.bestMove = fmove;
+      
+      table.insert(node, beta);
+
+      
+      if (fmove.getDest() & ~occ) {
+        hTable.insert(fmove, board.turn(), depth);
+        kTable.insert(fmove, plyCount);
+        cTable.insert(board.turn(), board.lastMove(), fmove);
+      }
+      
+      return beta; // fail hard
+    }
+  }
+  table.insert(node, alpha); // store node
   return alpha;
 }

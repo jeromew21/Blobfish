@@ -99,6 +99,7 @@ public:
   int material(Color color);
   int material();
   int mobility(Color c);
+  float tropism(u64 square, Color enemyColor);
 
   // STATE CHANGERS
   void reset();
