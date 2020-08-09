@@ -343,10 +343,8 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
   bool raisedAlpha = false;
 
   while (mv.notNull()) {
-    if (stop) {
-      return SCORE_MIN;
-    }
-
+    if (stop)
+      return alpha;
     int see = -1;
     bool isCapture = mv.getDest() & occ;
     if (isCapture) {
@@ -385,7 +383,7 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
   if (!raisedAlpha) {
     for (Move mv : quietMoves) {
       if (stop)
-        return SCORE_MIN;
+        return alpha;
       board.makeMove(mv);
       int score = -1 * quiescence(board, depth, plyCount + 1, -1 * beta,
                                   -1 * alpha, stop, count, kickoff + 1);
@@ -478,15 +476,14 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   bool nodeIsCheck = board.isCheck();
 
   // NULL MOVE PRUNE
+  int rNull = 3;
   if (nullmove && (!nodeIsCheck) && board.lastMove().notNull() &&
       (hadd(board.occupancy()) > 12)) {
-    int r = 3;
     Move mv = Move::NullMove();
     board.makeMove(mv);
     int score =
-        -1 * AI::alphaBetaSearch(board, depth - 1 - r, plyCount + 1, -1 * beta,
-                                 -1 * alpha, stop, count, All, false);
-    // quiescence(board, plyCount, -1*beta, -1*alpha, stop, count, 0);
+        -1 * AI::zeroWindowSearch(board, depth - 1 - rNull, plyCount + 1,
+                                  -1 * beta + 1, stop, count, All);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
@@ -494,9 +491,6 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
       node.bestMove = Move::NullMove();
       table.insert(node, beta);
       return beta; // fail hard
-    }
-    if (score > alpha) {
-      alpha = score; // push up alpha
     }
   }
 
@@ -721,9 +715,12 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
 
   int alpha = beta - 1;
 
+  NodeType childNodeType = myNodeType == Cut ? All : Cut;
+
   bool nullmove = true;
   bool lmr = true;
   bool futilityPrune = true;
+  bool multiCut = true;
 
   BoardStatus status = board.status();
   TableNode node(board, depth, myNodeType);
@@ -758,21 +755,46 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
         return score;
       }
     } else {
-      // Ideally a PV-node from prior iteration
       refMove = found->first.bestMove;
+    }
+  }
+
+  // Multi-Cut
+  int rMc = 3;
+  int cMc = 3;
+  int mMc = 6;
+  if (multiCut && myNodeType == Cut && depth >= rMc) {
+    int cCount = 0;
+    LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
+    int i = 0;
+    Move mv = board.nextMove(movegen);
+    while (mv.notNull() && i < mMc) {
+      i++;
+      board.makeMove(mv);
+      int score = -1 * zeroWindowSearch(board, depth - 1 - rMc, plyCount + 1,
+                                        -1 * alpha, stop, count, childNodeType);
+      board.unmakeMove();
+      if (score >= beta) {
+        cCount++;
+        if (cCount == cMc) {
+          return beta;
+        }
+      }
+      mv = board.nextMove(movegen);
     }
   }
 
   bool nodeIsCheck = board.isCheck();
 
   // NULL MOVE PRUNE
+  int rNull = 3;
   if (nullmove && (!nodeIsCheck) && board.lastMove().notNull() &&
       (hadd(board.occupancy()) > 12)) {
-    int r = 3;
     Move mv = Move::NullMove();
     board.makeMove(mv);
-    int score = -1 * AI::zeroWindowSearch(board, depth - 1 - r, plyCount + 1,
-                                          -1 * alpha, stop, count, All);
+    int score =
+        -1 * AI::zeroWindowSearch(board, depth - 1 - rNull, plyCount + 1,
+                                  -1 * beta + 1, stop, count, childNodeType);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
@@ -813,8 +835,6 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
   Move lastMove = board.lastMove();
   bool seenAll = false;
   std::vector<Move> allMoves;
-
-  NodeType childNodeType = myNodeType == Cut ? All : Cut;
 
   // bool foundMove = refMove.notNull(); // iid
 
@@ -919,8 +939,8 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     board.makeMove(fmove);
 
     int subdepth = depth - 1;
-    if (lmr && !nodeIsCheck && !board.isCheck() && !isCapture && depth > 2 &&
-        movesSearched > 4 && !isPawnMove) {
+    if (lmr && (myNodeType == All) && (!nodeIsCheck) && (!board.isCheck()) &&
+        (!isCapture) && (depth > 2) && (movesSearched > 4) && (!isPawnMove)) {
       int half = 4 + (moveCount - 4) / 2;
       if (movesSearched > half) {
         subdepth = depth - 3;
@@ -935,6 +955,14 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
 
     score = -1 * AI::zeroWindowSearch(board, subdepth, plyCount + 1, -1 * alpha,
                                       stop, count, childNodeType);
+
+    // LMR here
+    if (isReduced && score >= beta) {
+      // re-search
+      subdepth = depth - 1;
+      score = -1 * AI::zeroWindowSearch(board, subdepth, plyCount + 1,
+                                        -1 * alpha, stop, count, childNodeType);
+    }
 
     board.unmakeMove();
     movesSearched++;
