@@ -119,13 +119,15 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     if (found != table.end()) {
       if (found->first.depth > depth) {
         NodeType typ = found->first.nodeType;
-        refMove = found->first.bestMove;
         if (typ == All) {
           // upper bound, the exact score might be less.
           beta = found->second;
         } else if (typ == Cut) {
           // lower bound
+          refMove = found->first.bestMove;
           alpha = found->second;
+        } else if (typ == PV) {
+          refMove = found->first.bestMove;
         }
       } else {
         // Ideally a PV-node from prior iteration
@@ -190,8 +192,9 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
     int score;
     if (nullWindow) {
-      score = -1 * AI::zeroWindowSearch(board, depth, 0, -1 * alpha, stop,
-                                        subtreeCount, Cut);
+      score =
+          -1 * AI::zeroWindowSearch(board, depth, 0, -1 * alpha,
+                                   stop, subtreeCount, All);
       if (score > alpha) {
         score = -1 * AI::alphaBetaSearch(board, depth, 0, -1 * beta, -1 * alpha,
                                          stop, subtreeCount, PV, true);
@@ -232,6 +235,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
   return chosen;
 }
+
 
 void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
                 std::chrono::_V2::system_clock::time_point start) {
@@ -749,10 +753,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
       } else if (typ == Cut) {
         refMove = found->first.bestMove;
         alpha = max(alpha, found->second);
-      } else if (typ == PV) {
-        refMove = found->first.bestMove;
-      }
-
+      } 
       if (typ == PV || alpha >= beta) {
         int score = found->second;
         return score;
