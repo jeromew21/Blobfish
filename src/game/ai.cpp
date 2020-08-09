@@ -424,6 +424,8 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove,
 
   std::vector<MoveScore> otherWScore;
 
+  Move lastMove = board.lastMove();
+
   // priority:
   // 0) hashmove (1)
   // 1) winning caps (?)
@@ -450,7 +452,7 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove,
       }
     } else if (kTable.contains(mv, plyCount)) {
       heuristics.push_back(mv);
-    } else if (cTable.contains(board.lastMove(), mv, board.turn())) {
+    } else if (cTable.contains(lastMove, mv, board.turn())) {
       heuristics.push_back(mv);
     } else {
       other.push_back(mv);
@@ -462,10 +464,10 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove,
                    heuristics.size() + other.size() + negCaptures.size());
   // history sort
   Color tn = board.turn();
+  allMoves.insert(allMoves.end(), negCaptures.begin(), negCaptures.end());
   for (Move mv : other) {
     otherWScore.push_back(MoveScore(mv, hTable.get(mv, tn)));
   }
-  allMoves.insert(allMoves.end(), negCaptures.begin(), negCaptures.end());
   while (!otherWScore.empty()) {
     allMoves.push_back(popMin(otherWScore));
   }
