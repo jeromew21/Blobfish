@@ -762,6 +762,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
   int numPositiveMoves;
   std::vector<Move> moves =
       generateMovesOrdered(board, refMove, plyCount, numPositiveMoves);
+  numPositiveMoves = max(4, numPositiveMoves);
   int moveCount = moves.size();
 
   while (!moves.empty()) {
@@ -785,13 +786,13 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     int subdepth = depth - 1;
     if (board.isCheck()) {
       subdepth = depth; // Check ext
-    } else if (lmr && (!nodeIsCheck) && (!board.isCheck()) && (!isCapture) &&
+    } else if (lmr && (!nodeIsCheck) && (!isCapture) &&
         (depth > 2) && (movesSearched > numPositiveMoves) && (!isPawnMove)) {
       int half = numPositiveMoves + (moveCount - numPositiveMoves) / 2;
       if (movesSearched > half) {
-        subdepth = depth - 3;
+        subdepth = depth - 5;
       } else {
-        subdepth = depth - 2;
+        subdepth = depth - 4;
       }
       isReduced = true;
     } else if (lateMovePrune && (movesSearched > numPositiveMoves) && (movesSearched > 4)) {
