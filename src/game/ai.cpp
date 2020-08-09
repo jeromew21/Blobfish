@@ -690,7 +690,6 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
   bool nullmove = true;
   bool lmr = true;
   bool futilityPrune = true;
-  bool lateMovePrune = false;
 
   BoardStatus status = board.status();
   TableNode node(board, depth, myNodeType);
@@ -741,7 +740,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     board.makeMove(mv);
     int score =
         -1 * AI::zeroWindowSearch(board, depth - 1 - rNull, plyCount + 1,
-                                  -1 * beta + 1, stop, count, childNodeType);
+                                  -1 * beta + 1, stop, count, Cut);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
@@ -790,14 +789,11 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
         (depth > 2) && (movesSearched > numPositiveMoves) && (!isPawnMove)) {
       int half = numPositiveMoves + (moveCount - numPositiveMoves) / 2;
       if (movesSearched > half) {
-        subdepth = depth - 5;
-      } else {
         subdepth = depth - 4;
+      } else {
+        subdepth = depth - 3;
       }
       isReduced = true;
-    } else if (lateMovePrune && (movesSearched > numPositiveMoves) && (movesSearched > 4)) {
-      board.unmakeMove();
-      continue; //YOLOSWAG
     }
     int score;
 
