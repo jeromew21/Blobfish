@@ -1,23 +1,13 @@
 #include <game/ai.hpp>
 
 TranspositionTable<4194304> table;
-MiniTable<16384> pvTable;
+MiniTable<65536> pvTable;
 KillerTable kTable;
 HistoryTable hTable;
 CounterMoveTable cTable;
 
-u64 FILES[64];
-
 void AI::init() {
-  for (int col = 0; col < 8; col++) {
-    for (int row = 0; row < 8; row++) {
-      u64 res = 0;
-      for (int i = 0; i < 8; i++) {
-        res |= u64FromPair(i, col);
-      }
-      FILES[intFromPair(row, col)] = res;
-    }
-  }
+  //...
 }
 
 Move popMin(std::vector<MoveScore> &vec) {
@@ -409,8 +399,8 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
   return alpha;
 }
 
-std::vector<Move> generateMovesOrdered(Board &board, Move refMove,
-                                       int plyCount) {
+std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,
+                                       int &numPositiveMoves) {
   // order moves for non-qsearch
   u64 occ = board.occupancy();
   LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
@@ -459,8 +449,9 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove,
     }
     mv = board.nextMove(movegen);
   }
-  allMoves.reserve(hashMoves.size() + posCaptures.size() + eqCaptures.size() +
-                   heuristics.size() + other.size() + negCaptures.size());
+  numPositiveMoves = posCaptures.size() + hashMoves.size() + heuristics.size();
+  allMoves.reserve(numPositiveMoves + eqCaptures.size() + other.size() +
+                   negCaptures.size());
   // history sort
   Color tn = board.turn();
   for (Move mv : other) {
@@ -587,7 +578,8 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   bool nullWindow = false;
   bool raisedAlpha = false;
 
-  std::vector<Move> moves = generateMovesOrdered(board, refMove, plyCount);
+  int numPositiveMoves;
+  std::vector<Move> moves = generateMovesOrdered(board, refMove, plyCount, numPositiveMoves);
   int movesSearched = 0;
 
   while (!moves.empty()) {
@@ -698,6 +690,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
   bool nullmove = true;
   bool lmr = true;
   bool futilityPrune = true;
+  bool lateMovePrune = false;
 
   BoardStatus status = board.status();
   TableNode node(board, depth, myNodeType);
@@ -764,8 +757,11 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     fscore = AI::flippedEval(board);
   }
 
-  std::vector<Move> moves = generateMovesOrdered(board, refMove, plyCount);
   int movesSearched = 0;
+
+  int numPositiveMoves;
+  std::vector<Move> moves =
+      generateMovesOrdered(board, refMove, plyCount, numPositiveMoves);
   int moveCount = moves.size();
 
   while (!moves.empty()) {
@@ -787,17 +783,20 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     board.makeMove(fmove);
 
     int subdepth = depth - 1;
-    if (lmr && (myNodeType == All) && (!nodeIsCheck) && (!board.isCheck()) &&
-        (!isCapture) && (depth > 2) && (movesSearched > 4) && (!isPawnMove)) {
-      int half = 4 + (moveCount - 4) / 2;
+    if (board.isCheck()) {
+      subdepth = depth; // Check ext
+    } else if (lmr && (!nodeIsCheck) && (!board.isCheck()) && (!isCapture) &&
+        (depth > 2) && (movesSearched > numPositiveMoves) && (!isPawnMove)) {
+      int half = numPositiveMoves + (moveCount - numPositiveMoves) / 2;
       if (movesSearched > half) {
         subdepth = depth - 3;
       } else {
         subdepth = depth - 2;
       }
       isReduced = true;
-    } else if (board.isCheck()) {
-      subdepth = depth; // Check ext
+    } else if (lateMovePrune && (movesSearched > numPositiveMoves) && (movesSearched > 4)) {
+      board.unmakeMove();
+      continue; //YOLOSWAG
     }
     int score;
 
