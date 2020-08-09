@@ -6,10 +6,6 @@
 #include <limits>
 #include <thread>
 
-const size_t TABLE_SIZE = 4194304;
-
-const size_t MINI_TABLE_SIZE = 32768;
-
 struct TableNode {
   u64 hash;
   int depth;
@@ -35,18 +31,19 @@ struct TableBucket {
   TableBucket() {}
 };
 
+template <int N>
 class TranspositionTable {
-  TableBucket _arr[TABLE_SIZE];
+  TableBucket _arr[N];
   size_t members;
 
 public:
   TranspositionTable() { members = 0; }
 
-  int ppm() { return ((double)members / (double)TABLE_SIZE) * 1000.0; }
+  int ppm() { return ((double)members / (double)N) * 1000.0; }
 
   TableBucket *find(TableNode &node) {
     u64 hashval = node.hash;
-    int bucketIndex = hashval % TABLE_SIZE;
+    int bucketIndex = hashval % N;
     TableBucket *bucket = _arr + bucketIndex;
     if (bucket->first == node) {
       return bucket;
@@ -58,7 +55,7 @@ public:
 
   void insert(TableNode &node, int score) {
     u64 hashval = node.hash;
-    int bucketIndex = hashval % TABLE_SIZE;
+    int bucketIndex = hashval % N;
     TableBucket *bucket = _arr + bucketIndex;
     if (bucket->first.hash == 0) {
       // no overwrite
@@ -81,14 +78,15 @@ struct MiniTableBucket {
   std::array<Move, 64> seq;
 };
 
+template <int N>
 class MiniTable {
-  MiniTableBucket _arr[MINI_TABLE_SIZE];
+  MiniTableBucket _arr[N];
 
 public:
   MiniTable() {}
 
   MiniTableBucket *find(u64 hashval) {
-    int bucketIndex = hashval % MINI_TABLE_SIZE;
+    int bucketIndex = hashval % N;
     MiniTableBucket *bucket = _arr + bucketIndex;
     if (hashval == bucket->hash) {
       return bucket;
@@ -99,13 +97,13 @@ public:
   MiniTableBucket *end() { return NULL; }
 
   void clear() {
-    for (size_t i = 0; i < MINI_TABLE_SIZE; i++) {
+    for (size_t i = 0; i < N; i++) {
       _arr[i].hash = 0;
     }
   }
 
   void insert(u64 hashval, int depth, std::array<Move, 64> *moveseq) {
-    int bucketIndex = hashval % MINI_TABLE_SIZE;
+    int bucketIndex = hashval % N;
     MiniTableBucket *bucket = _arr + bucketIndex;
     bucket->hash = hashval;
     bucket->seq = *moveseq;
@@ -117,8 +115,6 @@ namespace AI {
 int materialEvaluation(Board &board);
 int evaluation(Board &board);
 int flippedEval(Board &board);
-
-TranspositionTable &getTable();
 
 void sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
             std::chrono::_V2::system_clock::time_point start);

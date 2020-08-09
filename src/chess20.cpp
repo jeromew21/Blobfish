@@ -34,7 +34,6 @@ public:
     std::vector<MoveScore> prevScores;
 
     for (depth = 0; depth < depthLimit; depth++) {
-      //sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
       int score;
       // send principal variation move from previous
       Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove,
@@ -57,8 +56,6 @@ public:
       }
     }
     sendCommand("bestmove " + moveToUCIAlgebraic(bestMove));
-    //sendCommand("info string think() routine ended");
-    sendCommand("info hashfull " + std::to_string(AI::getTable().ppm()));
     _stopKiller = true;
     _notThinking = true;
     AI::clearKillerTable(); //clean up
