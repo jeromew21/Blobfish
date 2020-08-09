@@ -459,15 +459,14 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove,
     }
     mv = board.nextMove(movegen);
   }
-  allMoves.clear();
   allMoves.reserve(hashMoves.size() + posCaptures.size() + eqCaptures.size() +
                    heuristics.size() + other.size() + negCaptures.size());
   // history sort
   Color tn = board.turn();
-  allMoves.insert(allMoves.end(), negCaptures.begin(), negCaptures.end());
   for (Move mv : other) {
     otherWScore.push_back(MoveScore(mv, hTable.get(mv, tn)));
   }
+  allMoves.insert(allMoves.end(), negCaptures.begin(), negCaptures.end());
   while (!otherWScore.empty()) {
     allMoves.push_back(popMin(otherWScore));
   }
@@ -483,8 +482,8 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
                         NodeType myNodeType, bool isSave) {
   count++;
 
-  bool nullmove = true;
-  bool futilityPrune = true;
+  // bool nullmove = false;
+  bool futilityPrune = false;
 
   BoardStatus status = board.status();
   TableNode node(board, depth, myNodeType);
@@ -557,6 +556,7 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   bool nodeIsCheck = board.isCheck();
   Move lastMove = board.lastMove();
 
+  /*
   // NULL MOVE PRUNE
   int rNull = 3;
   if (nullmove && (!nodeIsCheck) && lastMove.notNull() &&
@@ -575,6 +575,7 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
       return beta; // fail hard
     }
   }
+  */
 
   int fscore = 0;
   if (depth == 1 && futilityPrune) {
@@ -586,8 +587,6 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   bool nullWindow = false;
   bool raisedAlpha = false;
 
-  Move firstMove;
-
   std::vector<Move> moves = generateMovesOrdered(board, refMove, plyCount);
   int movesSearched = 0;
 
@@ -595,18 +594,11 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
     Move fmove = moves.back();
     moves.pop_back();
 
-    if ((futilityPrune && depth == 1) && movesSearched >= 1) {
-      if ((fmove.getDest() & ~occ && fmove != refMove) &&
-          (!board.isCheckingMove(fmove) && !nodeIsCheck)) {
-        if (fscore + 900 < alpha) {
-          // skip this move
-          continue;
-        }
-      }
-    }
-
-    if (movesSearched == 0) {
-      firstMove = fmove;
+    if (futilityPrune && (depth == 1) && (fmove.getDest() & ~occ) &&
+        (fmove != refMove) && (!board.isCheckingMove(fmove)) &&
+        (!nodeIsCheck) && (fscore + 900 < alpha)) {
+      // skip this move
+      continue;
     }
 
     bool isReduced = false;
@@ -667,7 +659,6 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   }
   if (!raisedAlpha) {
     node.nodeType = All;
-    node.bestMove = firstMove;
   }
   table.insert(node, alpha); // store node
   if (isSave && raisedAlpha) {
@@ -707,7 +698,6 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
   bool nullmove = true;
   bool lmr = true;
   bool futilityPrune = true;
-  bool multiCut = true;
 
   BoardStatus status = board.status();
   TableNode node(board, depth, myNodeType);
@@ -746,38 +736,14 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     }
   }
 
-  // Multi-Cut
-  int rMc = 3;
-  int cMc = 3;
-  int mMc = 6;
-  if (multiCut && myNodeType == Cut && depth >= rMc) {
-    int cCount = 0;
-    LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
-    int i = 0;
-    Move mv = board.nextMove(movegen);
-    while (mv.notNull() && i < mMc) {
-      i++;
-      board.makeMove(mv);
-      int score = -1 * zeroWindowSearch(board, depth - 1 - rMc, plyCount + 1,
-                                        -1 * alpha, stop, count, childNodeType);
-      board.unmakeMove();
-      if (score >= beta) {
-        cCount++;
-        if (cCount == cMc) {
-          return beta;
-        }
-      }
-      mv = board.nextMove(movegen);
-    }
-  }
-
   u64 occ = board.occupancy();
   bool nodeIsCheck = board.isCheck();
   Move lastMove = board.lastMove();
+  int occCount = hadd(occ);
 
   // NULL MOVE PRUNE
   int rNull = 3;
-  if (nullmove && (!nodeIsCheck) && lastMove.notNull() && (hadd(occ) > 12)) {
+  if (nullmove && (!nodeIsCheck) && lastMove.notNull() && (occCount > 12)) {
     Move mv = Move::NullMove();
     board.makeMove(mv);
     int score =
@@ -801,24 +767,16 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
   std::vector<Move> moves = generateMovesOrdered(board, refMove, plyCount);
   int movesSearched = 0;
   int moveCount = moves.size();
-  Move firstMove;
 
   while (!moves.empty()) {
     Move fmove = moves.back();
     moves.pop_back();
 
-    if ((futilityPrune && depth == 1) && movesSearched >= 1) {
-      if ((fmove.getDest() & ~occ && fmove != refMove) &&
-          (!board.isCheckingMove(fmove) && !nodeIsCheck)) {
-        if (fscore + 900 < alpha) {
-          // skip this move
-          continue;
-        }
-      }
-    }
-
-    if (movesSearched == 0) {
-      firstMove = fmove;
+    if (futilityPrune && (depth == 1) && (fmove.getDest() & ~occ) &&
+        (fmove != refMove) && (!board.isCheckingMove(fmove)) &&
+        (!nodeIsCheck) && (fscore + 900 < alpha)) {
+      // skip this move
+      continue;
     }
 
     bool isCapture = fmove.getDest() & occ;
