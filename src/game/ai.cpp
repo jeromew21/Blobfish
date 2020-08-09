@@ -192,9 +192,8 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
     int score;
     if (nullWindow) {
-      score =
-          -1 * AI::zeroWindowSearch(board, depth, 0, -1 * alpha,
-                                   stop, subtreeCount, Cut);
+      score = -1 * AI::zeroWindowSearch(board, depth, 0, -1 * alpha, stop,
+                                        subtreeCount, All);
       if (score > alpha) {
         score = -1 * AI::alphaBetaSearch(board, depth, 0, -1 * beta, -1 * alpha,
                                          stop, subtreeCount, PV, true);
@@ -228,14 +227,13 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     }
   }
   if (!raisedAlpha) {
-    sendCommand("info string ROOT FAIL-LOW");
+    sendCommand("info string root fail-low");
     outscore = alpha;
     return prevPv;
   }
 
   return chosen;
 }
-
 
 void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
                 std::chrono::_V2::system_clock::time_point start) {
@@ -280,7 +278,8 @@ void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
       "info depth " + std::to_string(max(1, depth)) + scoreStr + " time " +
       std::to_string(time) + " nps " +
       std::to_string((int)((double)nodeCount / ((double)time / 1000.0))) +
-      " nodes " + std::to_string(nodeCount) + pv);
+      " nodes " + std::to_string(nodeCount) + " hashfull " +
+      std::to_string(table.ppm()) + pv);
 }
 
 int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
@@ -640,7 +639,7 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
     int score;
     if (nullWindow) {
       score = -1 * AI::zeroWindowSearch(board, subdepth, plyCount + 1,
-                                        -1 * alpha, stop, count, Cut);
+                                        -1 * alpha, stop, count, All);
       if (score > alpha) {
         if (isReduced) {
           subdepth = depth - 1;
@@ -753,7 +752,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
       } else if (typ == Cut) {
         refMove = found->first.bestMove;
         alpha = max(alpha, found->second);
-      } 
+      }
       if (typ == PV || alpha >= beta) {
         int score = found->second;
         return score;
@@ -815,7 +814,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
   bool seenAll = false;
   std::vector<Move> allMoves;
 
-  NodeType childNodeType = All;
+  NodeType childNodeType = myNodeType == Cut ? All : Cut;
 
   // bool foundMove = refMove.notNull(); // iid
 
