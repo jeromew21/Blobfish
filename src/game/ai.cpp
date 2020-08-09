@@ -119,12 +119,12 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     if (found != table.end()) {
       if (found->first.depth > depth) {
         NodeType typ = found->first.nodeType;
+        refMove = found->first.bestMove;
         if (typ == All) {
           // upper bound, the exact score might be less.
           beta = found->second;
         } else if (typ == Cut) {
           // lower bound
-          refMove = found->first.bestMove;
           alpha = found->second;
         }
       } else {
@@ -341,7 +341,7 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
 
   while (mv.notNull()) {
     if (stop) {
-      return alpha;
+      return SCORE_MIN;
     }
 
     int see = -1;
@@ -382,7 +382,7 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
   if (!raisedAlpha) {
     for (Move mv : quietMoves) {
       if (stop)
-        return alpha;
+        return SCORE_MIN;
       board.makeMove(mv);
       int score = -1 * quiescence(board, depth, plyCount + 1, -1 * beta,
                                   -1 * alpha, stop, count, kickoff + 1);
@@ -647,8 +647,7 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
       }
     } else {
       score = -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1, -1 * beta,
-                                       -1 * alpha, stop, count, PV,
-                                       isSave);
+                                       -1 * alpha, stop, count, PV, isSave);
       if (refMove.notNull()) {
         nullWindow = true;
       }
@@ -920,8 +919,8 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     board.makeMove(fmove);
 
     int subdepth = depth - 1;
-    if (lmr && !nodeIsCheck && !board.isCheck() && !isCapture &&
-        (myNodeType != PV) && depth > 2 && movesSearched > 4 && !isPawnMove) {
+    if (lmr && !nodeIsCheck && !board.isCheck() && !isCapture && depth > 2 &&
+        movesSearched > 4 && !isPawnMove) {
       int half = 4 + (moveCount - 4) / 2;
       if (movesSearched > half) {
         subdepth = depth - 3;
