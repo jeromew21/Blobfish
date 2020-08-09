@@ -194,7 +194,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
     if (nullWindow) {
       score =
           -1 * AI::zeroWindowSearch(board, depth, 0, -1 * alpha,
-                                   stop, subtreeCount, All);
+                                   stop, subtreeCount, Cut);
       if (score > alpha) {
         score = -1 * AI::alphaBetaSearch(board, depth, 0, -1 * beta, -1 * alpha,
                                          stop, subtreeCount, PV, true);
@@ -958,6 +958,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
       return beta; // fail hard
     }
   }
+  node.nodeType = All;
   table.insert(node, alpha); // store node
   return alpha;
 }
