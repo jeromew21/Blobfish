@@ -58,7 +58,6 @@ public:
     sendCommand("bestmove " + moveToUCIAlgebraic(bestMove));
     _stopKiller = true;
     _notThinking = true;
-    AI::clearKillerTable(); //clean up
   }
 
   void stopThinking() {

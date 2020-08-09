@@ -20,6 +20,20 @@ void AI::init() {
   }
 }
 
+Move popMin(std::vector<MoveScore> &vec) {
+  int m = SCORE_MAX;
+  int minI = 0;
+  for (int i = 0; i < (int)vec.size(); i++) {
+    if (vec[i].score < m) {
+      m = vec[i].score;
+      minI = i;
+    }
+  }
+  Move bm = vec[minI].mv;
+  vec.erase(vec.begin() + minI);
+  return bm;
+}
+
 Move popMax(std::vector<MoveScore> &vec) {
   int m = SCORE_MIN;
   int maxI = 0;
@@ -97,8 +111,6 @@ int AI::flippedEval(Board &board) {
     return -1 * AI::evaluation(board);
   }
 }
-
-void AI::clearKillerTable() { kTable.clear(); }
 
 Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
                   int &outscore, Move prevPv, int &count,
@@ -397,6 +409,73 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
   return alpha;
 }
 
+std::vector<Move> generateMovesOrdered(Board &board, Move refMove,
+                                       int plyCount) {
+  // order moves for non-qsearch
+  u64 occ = board.occupancy();
+  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
+
+  std::vector<Move> hashMoves;
+  std::vector<Move> posCaptures;
+  std::vector<Move> eqCaptures;
+  std::vector<Move> heuristics;
+  std::vector<Move> negCaptures;
+  std::vector<Move> other;
+
+  std::vector<MoveScore> otherWScore;
+
+  // priority:
+  // 0) hashmove (1)
+  // 1) winning caps (?)
+  // 2) heuristic moves: killer and counter move (2)
+  // 3) equal caps (?)
+  // 4) losingCaps (?)
+  // 5) all other, sorted by history heuristic
+
+  std::vector<Move> allMoves;
+  Move mv = board.nextMove(movegen);
+  while (mv.notNull()) {
+    // sort move into correct bucket
+    u64 dest = mv.getDest();
+    if (mv == refMove) {
+      hashMoves.push_back(mv);
+    } else if (dest & occ) {
+      int see = board.see(mv);
+      if (see > 0) {
+        posCaptures.push_back(mv);
+      } else if (see == 0) {
+        eqCaptures.push_back(mv);
+      } else {
+        negCaptures.push_back(mv);
+      }
+    } else if (kTable.contains(mv, plyCount)) {
+      heuristics.push_back(mv);
+    } else if (cTable.contains(board.lastMove(), mv, board.turn())) {
+      heuristics.push_back(mv);
+    } else {
+      other.push_back(mv);
+    }
+    mv = board.nextMove(movegen);
+  }
+  allMoves.clear();
+  allMoves.reserve(hashMoves.size() + posCaptures.size() + eqCaptures.size() +
+                   heuristics.size() + other.size() + negCaptures.size());
+  // history sort
+  Color tn = board.turn();
+  for (Move mv : other) {
+    otherWScore.push_back(MoveScore(mv, hTable.get(mv, tn)));
+  }
+  allMoves.insert(allMoves.end(), negCaptures.begin(), negCaptures.end());
+  while (!otherWScore.empty()) {
+    allMoves.push_back(popMin(otherWScore));
+  }
+  allMoves.insert(allMoves.end(), eqCaptures.begin(), eqCaptures.end());
+  allMoves.insert(allMoves.end(), heuristics.begin(), heuristics.end());
+  allMoves.insert(allMoves.end(), posCaptures.begin(), posCaptures.end());
+  allMoves.insert(allMoves.end(), hashMoves.begin(), hashMoves.end());
+  return allMoves;
+}
+
 int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
                         int beta, std::atomic<bool> &stop, int &count,
                         NodeType myNodeType, bool isSave) {
@@ -474,10 +553,11 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   // use IID to find best move????
 
   bool nodeIsCheck = board.isCheck();
+  Move lastMove = board.lastMove();
 
   // NULL MOVE PRUNE
   int rNull = 3;
-  if (nullmove && (!nodeIsCheck) && board.lastMove().notNull() &&
+  if (nullmove && (!nodeIsCheck) && lastMove.notNull() &&
       (hadd(board.occupancy()) > 12)) {
     Move mv = Move::NullMove();
     board.makeMove(mv);
@@ -501,112 +581,17 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
 
   u64 occ = board.occupancy();
 
-  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
-
-  std::vector<Move> hashMoves;
-  std::vector<Move> posCaptures;
-  std::vector<Move> eqCaptures;
-  std::vector<Move> heuristics;
-  std::vector<Move> other;
-
-  std::vector<MoveScore> otherWScore;
-
-  int phase = 0;
-  // priority:
-  // 0) hashmove (1)
-  // 1) winning caps (?)
-  // 2) heuristic moves: killer and counter move (2)
-  // 3) equal caps (?)
-  // 4) losingCaps (?)
-  // 5) all other, sorted by history heuristic
-
-  int movesSearched = 0;
-  Move lastMove = board.lastMove();
-  bool seenAll = false;
-  std::vector<Move> allMoves;
-
   bool nullWindow = false;
   bool raisedAlpha = false;
-  // bool foundMove = refMove.notNull(); // iid
 
-  int moveCount = 0;
   Move firstMove;
 
-  while (true) {
-    if (!seenAll) {
-      Move mv = board.nextMove(movegen);
-      if (mv.isNull()) {
-        seenAll = true;
-        allMoves.clear();
-        allMoves.reserve(hashMoves.size() + posCaptures.size() +
-                         eqCaptures.size() + heuristics.size() + other.size());
-        // history sort
-        Color tn = board.turn();
-        for (Move mv : other) {
-          otherWScore.push_back(MoveScore(mv, hTable.get(mv, tn)));
-        }
-        allMoves.insert(allMoves.end(), eqCaptures.begin(), eqCaptures.end());
-        allMoves.insert(allMoves.end(), heuristics.begin(), heuristics.end());
-        allMoves.insert(allMoves.end(), posCaptures.begin(), posCaptures.end());
-        allMoves.insert(allMoves.end(), hashMoves.begin(), hashMoves.end());
-      } else {
-        // sort move into correct bucket
-        moveCount++;
-        u64 dest = mv.getDest();
-        if (mv == refMove) {
-          hashMoves.push_back(mv);
-        } else if (dest & occ) {
-          int see = board.see(mv);
-          if (see > 0) {
-            posCaptures.push_back(mv);
-          } else if (see == 0) {
-            eqCaptures.push_back(mv);
-          } else {
-            other.push_back(mv);
-          }
-        } else if (kTable.contains(mv, plyCount)) {
-          heuristics.push_back(mv);
-        } else if (cTable.contains(lastMove, mv, board.turn())) {
-          heuristics.push_back(mv);
-        } else {
-          other.push_back(mv);
-        }
-      }
-    }
+  std::vector<Move> moves = generateMovesOrdered(board, refMove, plyCount);
+  int movesSearched = 0;
 
-    Move fmove;
-
-    if (seenAll) { // we have seen all the moves.
-      if (allMoves.size() > 0) {
-        fmove = allMoves.back();
-        allMoves.pop_back();
-      } else if (otherWScore.size() > 0) {
-        fmove = popMax(otherWScore);
-      } else {
-        break;
-      }
-    } else {
-      // grab depending on phase
-      if (phase == 0) {
-        if (hashMoves.size() > 0) {
-          fmove = hashMoves.back();
-          hashMoves.pop_back();
-          phase = 1;
-        } else {
-          continue;
-        }
-      } else if (phase == 1) {
-        // looking for pos captures
-        if (posCaptures.size() > 0) {
-          fmove = posCaptures.back();
-          posCaptures.pop_back();
-        } else {
-          continue;
-        }
-      } else {
-        continue;
-      }
-    }
+  while (!moves.empty()) {
+    Move fmove = moves.back();
+    moves.pop_back();
 
     if ((futilityPrune && depth == 1) && movesSearched >= 1) {
       if ((fmove.getDest() & ~occ && fmove != refMove) &&
@@ -665,7 +650,7 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
       if (fmove.getDest() & ~occ) {
         hTable.insert(fmove, board.turn(), depth);
         kTable.insert(fmove, plyCount);
-        cTable.insert(board.turn(), board.lastMove(), fmove);
+        cTable.insert(board.turn(), lastMove, fmove);
       }
       return beta; // fail hard
     }
@@ -784,12 +769,13 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     }
   }
 
+  u64 occ = board.occupancy();
   bool nodeIsCheck = board.isCheck();
+  Move lastMove = board.lastMove();
 
   // NULL MOVE PRUNE
   int rNull = 3;
-  if (nullmove && (!nodeIsCheck) && board.lastMove().notNull() &&
-      (hadd(board.occupancy()) > 12)) {
+  if (nullmove && (!nodeIsCheck) && lastMove.notNull() && (hadd(occ) > 12)) {
     Move mv = Move::NullMove();
     board.makeMove(mv);
     int score =
@@ -810,112 +796,14 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     fscore = AI::flippedEval(board);
   }
 
-  u64 occ = board.occupancy();
-
-  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
-
-  std::vector<Move> hashMoves;
-  std::vector<Move> posCaptures;
-  std::vector<Move> eqCaptures;
-  std::vector<Move> heuristics;
-  std::vector<Move> other;
-
-  std::vector<MoveScore> otherWScore;
-
-  int phase = 0;
-  // priority:
-  // 0) hashmove (1)
-  // 1) winning caps (?)
-  // 2) heuristic moves: killer and counter move (2)
-  // 3) equal caps (?)
-  // 4) losingCaps (?)
-  // 5) all other, sorted by history heuristic
-
+  std::vector<Move> moves = generateMovesOrdered(board, refMove, plyCount);
   int movesSearched = 0;
-  Move lastMove = board.lastMove();
-  bool seenAll = false;
-  std::vector<Move> allMoves;
-
-  // bool foundMove = refMove.notNull(); // iid
-
-  int moveCount = 0;
+  int moveCount = moves.size();
   Move firstMove;
 
-  while (true) {
-    if (!seenAll) {
-      Move mv = board.nextMove(movegen);
-      if (mv.isNull()) {
-        seenAll = true;
-        allMoves.clear();
-        allMoves.reserve(hashMoves.size() + posCaptures.size() +
-                         eqCaptures.size() + heuristics.size() + other.size());
-        // history sort
-        Color tn = board.turn();
-        for (Move mv : other) {
-          otherWScore.push_back(MoveScore(mv, hTable.get(mv, tn)));
-        }
-        allMoves.insert(allMoves.end(), eqCaptures.begin(), eqCaptures.end());
-        allMoves.insert(allMoves.end(), heuristics.begin(), heuristics.end());
-        allMoves.insert(allMoves.end(), posCaptures.begin(), posCaptures.end());
-        allMoves.insert(allMoves.end(), hashMoves.begin(), hashMoves.end());
-      } else {
-        // sort move into correct bucket
-        moveCount++;
-        u64 dest = mv.getDest();
-        if (mv == refMove) {
-          hashMoves.push_back(mv);
-        } else if (dest & occ) {
-          int see = board.see(mv);
-          if (see > 0) {
-            posCaptures.push_back(mv);
-          } else if (see == 0) {
-            eqCaptures.push_back(mv);
-          } else {
-            other.push_back(mv);
-          }
-        } else if (kTable.contains(mv, plyCount)) {
-          heuristics.push_back(mv);
-        } else if (cTable.contains(lastMove, mv, board.turn())) {
-          heuristics.push_back(mv);
-        } else {
-          other.push_back(mv);
-        }
-      }
-    }
-
-    Move fmove;
-
-    if (seenAll) { // we have seen all the moves.
-      if (allMoves.size() > 0) {
-        fmove = allMoves.back();
-        allMoves.pop_back();
-      } else if (otherWScore.size() > 0) {
-        fmove = popMax(otherWScore);
-      } else {
-        break;
-      }
-    } else {
-      // grab depending on phase
-      if (phase == 0) {
-        if (hashMoves.size() > 0) {
-          fmove = hashMoves.back();
-          hashMoves.pop_back();
-          phase = 1;
-        } else {
-          continue;
-        }
-      } else if (phase == 1) {
-        // looking for pos captures
-        if (posCaptures.size() > 0) {
-          fmove = posCaptures.back();
-          posCaptures.pop_back();
-        } else {
-          continue;
-        }
-      } else {
-        continue;
-      }
-    }
+  while (!moves.empty()) {
+    Move fmove = moves.back();
+    moves.pop_back();
 
     if ((futilityPrune && depth == 1) && movesSearched >= 1) {
       if ((fmove.getDest() & ~occ && fmove != refMove) &&
@@ -979,7 +867,7 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
       if (fmove.getDest() & ~occ) {
         hTable.insert(fmove, board.turn(), depth);
         kTable.insert(fmove, plyCount);
-        cTable.insert(board.turn(), board.lastMove(), fmove);
+        cTable.insert(board.turn(), lastMove, fmove);
       }
 
       return beta; // fail hard

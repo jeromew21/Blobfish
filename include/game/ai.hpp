@@ -137,8 +137,6 @@ int zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
 void init();
 void reset();
 
-void clearKillerTable();
-
 } // namespace AI
 
 #endif
