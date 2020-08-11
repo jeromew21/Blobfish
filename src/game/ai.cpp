@@ -481,9 +481,6 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
                         NodeType myNodeType, bool isSave) {
   count++;
 
-  // bool nullmove = false;
-  bool futilityPrune = false;
-
   BoardStatus status = board.status();
   TableNode node(board, depth, myNodeType);
 
@@ -552,34 +549,7 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
 
   // use IID to find best move????
 
-  bool nodeIsCheck = board.isCheck();
   Move lastMove = board.lastMove();
-
-  /*
-  // NULL MOVE PRUNE
-  int rNull = 3;
-  if (nullmove && (!nodeIsCheck) && lastMove.notNull() &&
-      (hadd(board.occupancy()) > 12)) {
-    Move mv = Move::NullMove();
-    board.makeMove(mv);
-    int score =
-        -1 * AI::zeroWindowSearch(board, depth - 1 - rNull, plyCount + 1,
-                                  -1 * beta + 1, stop, count, All);
-    board.unmakeMove();
-    if (score >= beta) { // our move is better than beta, so this node is cut
-                         // off
-      node.nodeType = Cut;
-      node.bestMove = Move::NullMove();
-      table.insert(node, beta);
-      return beta; // fail hard
-    }
-  }
-  */
-
-  int fscore = 0;
-  if (depth == 1 && futilityPrune) {
-    fscore = AI::flippedEval(board);
-  }
 
   u64 occ = board.occupancy();
 
@@ -594,13 +564,6 @@ int AI::alphaBetaSearch(Board &board, int depth, int plyCount, int alpha,
   while (!moves.empty()) {
     Move fmove = moves.back();
     moves.pop_back();
-
-    if (futilityPrune && (depth == 1) && (fmove.getDest() & ~occ) &&
-        (fmove != refMove) && (!board.isCheckingMove(fmove)) &&
-        (!nodeIsCheck) && (fscore + 900 < alpha)) {
-      // skip this move
-      continue;
-    }
 
     board.makeMove(fmove);
 
@@ -773,9 +736,9 @@ int AI::zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
     Move fmove = moves.back();
     moves.pop_back();
 
-    if (futilityPrune && (depth == 1) && (fmove.getDest() & ~occ) &&
-        (fmove != refMove) && (!board.isCheckingMove(fmove)) &&
-        (!nodeIsCheck) && (fscore + 900 < alpha)) {
+    if (futilityPrune && (depth == 1) && (fmove != refMove) && (!nodeIsCheck) &&
+        (fscore + 900 < alpha) && (fmove.getDest() & ~occ) &&
+        (!board.isCheckingMove(fmove))) {
       // skip this move
       continue;
     }

@@ -1434,6 +1434,11 @@ int Board::see(Move mv) {
 }
 
 bool Board::_isInLineWithKing(u64 square, Color kingColor) {
+  u64 outpinner = 0;
+  return _isInLineWithKing(square, kingColor, outpinner);
+}
+
+bool Board::_isInLineWithKing(u64 square, Color kingColor, u64 &outPinner) {
   u64 occ = occupancy();
   u64 occWithout = occ & ~square;
   u64 kingBB = bitboard[W_King + kingColor * 6];
@@ -1445,14 +1450,18 @@ bool Board::_isInLineWithKing(u64 square, Color kingColor) {
   for (int d = 0; d < 4; d++) {
     u64 ray;
     ray = _bishopRay(kingBB, d, occWithout);
-    if ((ebishop | equeen) & ray) {
+    u64 test = (ebishop | equeen) & ray;
+    if (test) {
       if (ray & square) {
+        outPinner = test;
         return true;
       }
     }
     ray = _rookRay(kingBB, d, occWithout);
-    if ((erook | equeen) & ray) {
+    test = (erook | equeen) & ray;
+    if (test) {
       if (ray & square) {
+        outPinner = test;
         return true;
       }
     }
@@ -1566,7 +1575,8 @@ std::vector<Move> Board::produceUncheckMoves() {
             if (!_isInLineWithKing(src | capturedPawn, color)) {
               // both are not pinned
               if (capturedPawn & target) {
-                v.push_back(Move(srci, boardState[EN_PASSANT_INDEX], MoveTypeCode::EnPassant));
+                v.push_back(Move(srci, boardState[EN_PASSANT_INDEX],
+                                 MoveTypeCode::EnPassant));
               }
             }
           }
@@ -1631,8 +1641,10 @@ bool Board::_verifyLegal(Move mv) {
     // can't move into a controlled square
     return _isUnderAttack(dest, enemyColor) ? false : true;
   }
-  if (_isInLineWithKing(src, c)) {
-    return false;
+  u64 outPinner;
+  if (_isInLineWithKing(src, c, outPinner)) {
+    // can capture the piece that is pinning it
+    return (dest & outPinner) ? true : false;
   }
   return true;
 }

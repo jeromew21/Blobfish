@@ -27,6 +27,7 @@ private:
   void _switchTurn(Color t);
 
   bool _isInLineWithKing(u64 square, Color kingColor);
+  bool _isInLineWithKing(u64 square, Color kingColor, u64 &outPinner);
 
   u64 _zobristHash;
 
@@ -49,7 +50,7 @@ private:
 
   u64 _rookRay(u64 origin, int direction, u64 mask);
   u64 _bishopRay(u64 origin, int direction, u64 mask);
-  
+
   bool _verifyLegal(Move mv);
 
 public:
