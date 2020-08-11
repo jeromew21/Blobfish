@@ -244,7 +244,7 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
   if (!raisedAlpha) {
     sendCommand("info string root fail-low");
     outscore = alpha;
-    return prevPv;
+    return chosen;
   }
 
   return chosen;
@@ -420,6 +420,13 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,
   std::vector<Move> heuristics;
   std::vector<Move> negCaptures;
   std::vector<Move> other;
+
+  hashMoves.reserve(2);
+  posCaptures.reserve(3);
+  eqCaptures.reserve(10);
+  heuristics.reserve(3);
+  negCaptures.reserve(15);
+  other.reserve(15);
 
   std::vector<MoveScore> otherWScore;
 
