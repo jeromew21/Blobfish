@@ -26,6 +26,8 @@ private:
   void _switchTurn();
   void _switchTurn(Color t);
 
+  bool _isInLineWithKing(u64 square, Color kingColor);
+
   u64 _zobristHash;
 
   u64 _isUnderAttack(u64 target); // return a set that attack the target
@@ -47,6 +49,8 @@ private:
 
   u64 _rookRay(u64 origin, int direction, u64 mask);
   u64 _bishopRay(u64 origin, int direction, u64 mask);
+  
+  bool _verifyLegal(Move mv);
 
 public:
   BoardStateStack stack;
@@ -58,7 +62,6 @@ public:
   std::array<u64, 64> attackMap;
   std::array<u64, 64> defendMap;
 
-  bool verifyLegal(Move mv);
 
   void generateSpecialMoves(SpecialMoveBuffer &sbuffer);
   Move nextMove(LazyMovegen &movegen);
@@ -75,8 +78,6 @@ public:
   // shortcut move gen
   std::vector<Move> produceUncheckMoves();
 
-  bool isCheckingMove(Move mv, Color kingColor);
-  bool isCheckingMove2(Move mv, Color kingColor);
   bool isCheckingMove(Move mv);
 
   // Important stuff

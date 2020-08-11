@@ -341,14 +341,13 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
   u64 occ = board.occupancy();
   bool deltaPrune = true && hadd(occ) > 12;
 
-  LazyMovegen movegen(board.occupancy(board.turn()), board.attackMap);
-  Move mv = board.nextMove(movegen); // order by MVV-LVA?
+  std::vector<Move> movelist = board.legalMoves(); // order by MVV-LVA?
 
   std::vector<Move> quietMoves;
 
   std::vector<MoveScore> moves;
 
-  while (mv.notNull()) {
+  for (Move mv : movelist) {
     int see = -1;
     bool isCapture = mv.getDest() & occ;
     if (isCapture) {
@@ -361,9 +360,8 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
         deltaPrune && isCapture &&
         (baseline + 200 + MATERIAL_TABLE[board.pieceAt(mv.getDest())] < alpha);
     bool isCheckingMove = board.isCheckingMove(mv);
-    bool isChecking =
-        (kickoff == 0 || kickoff == 2) && isCheckingMove &&
-        (!isCapture || (isCapture && see >= 0 && !isDeltaPrune));
+    bool isChecking = (kickoff == 0 || kickoff == 2) && isCheckingMove &&
+                      (!isCapture || (isCapture && see >= 0 && !isDeltaPrune));
     int score = 0;
     if (!isCapture) {
       if (isPromotion && mv.getPromotingPiece() == W_Queen) {
@@ -371,6 +369,7 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
       }
     } else {
       score = MATERIAL_TABLE[board.pieceAt(mv.getDest())]; // mvv-lva
+      //+(900-getSrc)/100
     }
 
     if ((!isDeltaPrune && see >= 0) || isChecking || isPromotion || isCheck) {
@@ -378,7 +377,6 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
     } else if (isCheckingMove && (!isCapture || (isCapture && see >= 0))) {
       quietMoves.push_back(mv);
     }
-    mv = board.nextMove(movegen);
   }
   while (!moves.empty()) {
     Move mv = popMax(moves);
@@ -436,8 +434,8 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,
   // 5) all other, sorted by history heuristic
 
   std::vector<Move> allMoves;
-  Move mv = board.nextMove(movegen);
-  while (mv.notNull()) {
+  std::vector<Move> movelist = board.legalMoves();
+  for (Move mv : movelist) {
     // sort move into correct bucket
     u64 dest = mv.getDest();
     if (mv == refMove) {
@@ -458,7 +456,6 @@ std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,
     } else {
       other.push_back(mv);
     }
-    mv = board.nextMove(movegen);
   }
   numPositiveMoves = posCaptures.size() + hashMoves.size() + heuristics.size();
   allMoves.reserve(numPositiveMoves + eqCaptures.size() + other.size() +
