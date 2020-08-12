@@ -538,11 +538,17 @@ BoardStatus Board::status() {
     if (isCheck()) {
       auto movelist = produceUncheckMoves();
       if (movelist.empty()) {
-        _status = turn() == White ? BoardStatus::BlackWin : BoardStatus::WhiteWin;
+        _status =
+            turn() == White ? BoardStatus::BlackWin : BoardStatus::WhiteWin;
         return _status;
       }
     } else {
-      _status = BoardStatus::Stalemate;
+      LazyMovegen movegen(occupancy(turn()), attackMap);
+      Move mv = nextMove(movegen);
+      if (mv.isNull()) {
+        _status = BoardStatus::Stalemate;
+        return _status;
+      }
     }
     _status = BoardStatus::Playing;
     return _status;
