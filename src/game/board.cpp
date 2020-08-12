@@ -636,6 +636,7 @@ void Board::makeMove(Move mv) {
 
     if (mover % 6 == 0 || destFormer != Empty) {
       boardState[HAS_REPEATED_INDEX] = 0;
+      boardState[HALFMOVE_INDEX] = 0;
     } else {
       boardState[HALFMOVE_INDEX] += 1;
     }
@@ -994,7 +995,7 @@ void Board::dump(bool debug) {
     for (PieceType p = 0; p < 12; p++) {
       std::cout << pieceToString(p) << ": " << pieceScoreEarlyGame[p] << "\n";
     }*/
-    std::cout << "\nKing safety:";
+    std::cout << "\nKing safety: ";
     std::cout << kingSafety(White) << ", " << kingSafety(Black) << "\n";
 
     /*std::cout << "\nState stack: ";
@@ -1850,7 +1851,6 @@ void Board::loadPosition(std::string fen) {
 void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
                          int wlong, int wshort, int blong, int bshort, int halfmove0, int fullmove0) {
   // set board, bitboards
-  boardState[HALFMOVE_INDEX] = halfmove0;
   fullmoveOffset = fullmove0;
   for (PieceType i = 0; i < 12; i++) {
     bitboard[i] = 0;
@@ -1875,6 +1875,7 @@ void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
   boardState[LAST_CAPTURED_INDEX] = Empty;
   boardState[LAST_MOVED_INDEX] = Empty;
   boardState[HAS_REPEATED_INDEX] = 0;
+  boardState[HALFMOVE_INDEX] = halfmove0;
 
   _switchTurn(turn);
   _setEpSquare(epIndex);
