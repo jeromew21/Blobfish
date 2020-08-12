@@ -26,8 +26,8 @@ private:
   void _switchTurn();
   void _switchTurn(Color t);
 
-  bool _isInLineWithKing(u64 square, Color kingColor);
-  bool _isInLineWithKing(u64 square, Color kingColor, u64 &outPinner);
+  bool _isInLineWithKing(u64 square, Color kingColor, u64 kingBB);
+  bool _isInLineWithKing(u64 square, Color kingColor, u64 kingBB, u64 &outPinner);
 
   u64 _zobristHash;
 
@@ -52,10 +52,13 @@ private:
   u64 _bishopRay(u64 origin, int direction, u64 mask);
 
   bool _verifyLegal(Move mv);
+  bool _verifyLegal2(Move mv);
 
 public:
   BoardStateStack stack;
   u64 bitboard[12];
+
+  void perft(int depth, PerftCounter& pcounter);
 
   float pieceScoreEarlyGame[12];
   float pieceScoreLateGame[12];
@@ -80,6 +83,9 @@ public:
   std::vector<Move> produceUncheckMoves();
 
   bool isCheckingMove(Move mv);
+  
+  bool isCheckingMove(Move mv, Color kingColor); //del
+  bool isCheckingMove2(Move mv); // del
 
   // Important stuff
   std::vector<Move> legalMoves(); // calls generate

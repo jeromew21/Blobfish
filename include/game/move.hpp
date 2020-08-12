@@ -27,12 +27,10 @@ struct Move {
 
   inline int getTypeCode() { return data & 15; }
 
-  inline PieceType getPromotingPiece() {
-    return getTypeCode() - 5;
-  }
+  inline PieceType getPromotingPiece() { return getTypeCode() - 5; }
 
   inline PieceType getPromotingPiece(Color c) {
-    return getPromotingPiece() + 6*c;
+    return getPromotingPiece() + 6 * c;
   }
 
   inline bool isPromotion() {
@@ -40,17 +38,18 @@ struct Move {
     return tc >= MoveTypeCode::KPromotion && tc <= MoveTypeCode::QPromotion;
   }
 
+  inline bool isCastle() {
+    int tc = getTypeCode();
+    return tc == MoveTypeCode::CastleLong || tc == MoveTypeCode::CastleShort;
+  }
+
   inline int getSrcIndex() { return data >> 10; }
 
   inline int getDestIndex() { return (data >> 4) & 63; }
 
-  inline u64 getSrc() {
-    return u64FromIndex(data >> 10);
-  }
+  inline u64 getSrc() { return u64FromIndex(data >> 10); }
 
-  inline u64 getDest() {
-    return u64FromIndex((data >> 4) & 63);
-  }
+  inline u64 getDest() { return u64FromIndex((data >> 4) & 63); }
 
   Move(int src0, int dest0, int typeCode) {
     data = (src0 << 10) | (dest0 << 4) | (typeCode & 15);

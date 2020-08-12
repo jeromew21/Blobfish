@@ -1,6 +1,5 @@
 #include <game/board.hpp>
 
-
 int Board::material() { return material(White) - material(Black); }
 
 int Board::material(Color color) {
@@ -28,7 +27,7 @@ float Board::kingSafety(Color c) {
   int row = intToRow(index);
   bool isOnEdge = col % 7 == 0;
 
-  //Keep pawns in front of king
+  // Keep pawns in front of king
   if (kingBB & backRank) {
     float pawnShieldScore = hadd(kingMoves(index) & pawns);
     if (isOnEdge) {
@@ -36,10 +35,10 @@ float Board::kingSafety(Color c) {
     } else {
       pawnShieldScore /= 3.0f;
     }
-    score += pawnShieldScore*3.0f;
+    score += pawnShieldScore * 3.0f;
   }
 
-  //Penalize being on or next to open files
+  // Penalize being on or next to open files
   float openFilesPenalty = 0.0f;
   if (!(rookMoves(index, rookDir) & pawns)) {
     openFilesPenalty += 2.0f;
@@ -64,7 +63,7 @@ float Board::kingSafety(Color c) {
       openFilesPenalty += 1.0f;
     }
   }
-  score -= openFilesPenalty*1.5f; //weight for open files
+  score -= openFilesPenalty * 1.5f; // weight for open files
 
   return score;
 }
@@ -77,26 +76,24 @@ float Board::tropism(u64 square, Color enemyColor) {
   std::array<int, 64> arr;
   int count;
   for (PieceType p = 1; p < 5; p++) {
-    u64 bb = bitboard[p + 6*enemyColor];
+    u64 bb = bitboard[p + 6 * enemyColor];
     bitscanAllInt(arr, bb, count);
     for (int i = 0; i < count; i++) {
       int index = arr[i];
       int eRow = intToRow(index);
       int eCol = intToCol(index);
       sum += (abs(eRow - row) + abs(eCol - col)) * weights[p];
-    }  
+    }
   }
-  return -1.0f*sum;
+  return -1.0f * sum;
 }
 
 int Board::mobility(Color c) { // Minor piece and rook mobility
   int result = 0;
   u64 friendlies = occupancy(c);
   u64 pieces = c == White
-                   ? bitboard[W_Knight] | bitboard[W_Bishop] |
-                         bitboard[W_Rook]
-                   : bitboard[B_Knight] | bitboard[B_Bishop] |
-                         bitboard[B_Rook];
+                   ? bitboard[W_Knight] | bitboard[W_Bishop] | bitboard[W_Rook]
+                   : bitboard[B_Knight] | bitboard[B_Bishop] | bitboard[B_Rook];
   std::array<u64, 64> arr;
   int count;
 
@@ -108,7 +105,7 @@ int Board::mobility(Color c) { // Minor piece and rook mobility
   return result; // todo fix
 }
 
-std::string Board::vectorize() { //return a vector representation of the board
+std::string Board::vectorize() { // return a vector representation of the board
   std::string res = "";
   for (PieceType p = 0; p < 12; p++) {
     u64 x = 0;
@@ -135,4 +132,45 @@ std::string Board::vectorize() { //return a vector representation of the board
     }
   }
   return res;
+}
+
+void Board::perft(int depth, PerftCounter &pcounter) {
+  if (depth == 0) {
+    return;
+  }
+
+  std::vector<Move> moves = legalMoves();
+  int s = moves.size();
+  u64 occ = occupancy();
+  for (int i = 0; i < s; i++) {
+    Move mv = moves[i];
+    if (depth == 1) {
+      pcounter.nodes += 1;
+      if (mv.isCastle()) {
+        pcounter.castles += 1;
+      }
+      if (mv.isPromotion()) {
+        pcounter.promotions += 1;
+      }
+      if (isCheckingMove(mv)) {
+        pcounter.checks += 1;
+      }
+      if (mv.getDest() & occ) {
+        pcounter.captures += 1;
+      }
+      if (mv.getTypeCode() == MoveTypeCode::EnPassant) {
+        pcounter.ep += 1;
+        pcounter.captures += 1;
+      }
+    }
+    makeMove(mv);
+    if (depth == 1) {
+      auto s = status();
+      if (s == BoardStatus::WhiteWin || s == BoardStatus::BlackWin) {
+        pcounter.checkmates += 1;
+      }
+    }
+    perft(depth - 1, pcounter);
+    unmakeMove();
+  }
 }

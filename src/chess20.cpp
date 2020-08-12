@@ -292,6 +292,17 @@ operation.*/
       exit(0);
     } else if (tokens[0] == "dump") {
       board.dump(true);
+    } else if (tokens[0] == "perft") {
+      PerftCounter pcounter;
+      int depth = std::stoi(tokens[1]);
+      board.perft(depth, pcounter);
+      std::cout << "Nodes: " << pcounter.nodes << "\n";
+      std::cout << "Captures: " << pcounter.captures << "\n";
+      std::cout << "Castles: " << pcounter.castles << "\n";
+      std::cout << "Checks: " << pcounter.checks << "\n";
+      std::cout << "EP: " << pcounter.ep << "\n";
+      std::cout << "Promotions: " << pcounter.promotions << "\n";
+      std::cout << "Checkmates: " << pcounter.checkmates << "\nEND PERFT\n\n";
     } else if (tokens[0] == "unmake") {
       if (board.canUndo()) {
         board.unmakeMove();
