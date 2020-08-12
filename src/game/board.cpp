@@ -535,16 +535,14 @@ BoardStatus Board::status() {
         return _status;
       }
     }
-
-    auto movelist = produceUncheckMoves();
-    if (movelist.empty()) {
-      if (isCheck()) {
-        _status =
-            turn() == White ? BoardStatus::BlackWin : BoardStatus::WhiteWin;
-      } else {
-        _status = BoardStatus::Stalemate;
+    if (isCheck()) {
+      auto movelist = produceUncheckMoves();
+      if (movelist.empty()) {
+        _status = turn() == White ? BoardStatus::BlackWin : BoardStatus::WhiteWin;
+        return _status;
       }
-      return _status;
+    } else {
+      _status = BoardStatus::Stalemate;
     }
     _status = BoardStatus::Playing;
     return _status;
@@ -1441,7 +1439,8 @@ bool Board::_isInLineWithKing(u64 square, Color kingColor, u64 kingBB) {
   return _isInLineWithKing(square, kingColor, kingBB, outRay);
 }
 
-bool Board::_isInLineWithKing(u64 square, Color kingColor, u64 kingBB, u64 &outRay) {
+bool Board::_isInLineWithKing(u64 square, Color kingColor, u64 kingBB,
+                              u64 &outRay) {
   u64 occ = occupancy();
   u64 occWithout = occ & ~square;
   int offset = flipColor(kingColor) * 6;
@@ -1615,10 +1614,10 @@ std::vector<Move> Board::produceUncheckMoves() {
   bitscanAll(arr, kingMoves, count);
   for (int i = 0; i < count; i++) {
     if (!_isUnderAttack(arr[i], enemyColor) && !(arr[i] & myOcc)) {
-      //not under attack and is free square
+      // not under attack and is free square
       u64 outRay;
       if (_isInLineWithKing(bitboard[king], color, arr[i], outRay)) {
-        //if the king is being attacked by a sliding piece 
+        // if the king is being attacked by a sliding piece
         continue;
       }
       v.push_back(Move(kingIndex, u64ToIndex(arr[i]), MoveTypeCode::Default));
@@ -1641,7 +1640,7 @@ bool Board::_verifyLegal(Move mv) {
   if (mv.getTypeCode() == MoveTypeCode::EnPassant) {
     int destIndex = u64ToIndex(dest);
     u64 capturedPawn = PAWN_MOVE_CACHE[destIndex][flipColor(c)];
-    if (_isInLineWithKing(src | capturedPawn, c, bitboard[W_King+6*c])) {
+    if (_isInLineWithKing(src | capturedPawn, c, bitboard[W_King + 6 * c])) {
       return false;
     }
     return true;
@@ -1649,18 +1648,17 @@ bool Board::_verifyLegal(Move mv) {
   PieceType mover = pieceAt(src);
   if (mover % 6 == W_King) {
     // can't move into a controlled square
-    //place a "king" onto dest
+    // place a "king" onto dest
     return _isUnderAttack(dest, enemyColor) ? false : true;
   }
   u64 outRay;
-  if (_isInLineWithKing(src, c,bitboard[W_King+6*c], outRay)) {
+  if (_isInLineWithKing(src, c, bitboard[W_King + 6 * c], outRay)) {
     // can capture the piece that is pinning it
     // or move along pinned path
     return (dest & outRay) ? true : false;
   }
   return true;
 }
-
 
 bool Board::isCheckingMove(Move mv) {
   Color moveColor = turn();
@@ -1707,7 +1705,6 @@ bool Board::isCheckingMove(Move mv) {
     u64 src = mv.getSrc();
     u64 dest = mv.getDest();
     PieceType mover = pieceAt(src);
-
 
     u64 outRay;
     // check for discoveries

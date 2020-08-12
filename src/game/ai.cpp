@@ -244,7 +244,8 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
   if (!raisedAlpha) {
     sendCommand("info string root fail-low");
     outscore = alpha;
-    return chosen;
+
+    return prevPv;
   }
 
   return chosen;

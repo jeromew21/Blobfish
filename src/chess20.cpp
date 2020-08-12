@@ -299,7 +299,7 @@ operation.*/
       std::cout << "Nodes: " << pcounter.nodes << "\n";
       std::cout << "Captures: " << pcounter.captures << "\n";
       std::cout << "Castles: " << pcounter.castles << "\n";
-      std::cout << "Checks: " << pcounter.checks << "\n";
+      std::cout << "EP: " << pcounter.checks << "\n";
       std::cout << "EP: " << pcounter.ep << "\n";
       std::cout << "Promotions: " << pcounter.promotions << "\n";
       std::cout << "Checkmates: " << pcounter.checkmates << "\nEND PERFT\n\n";
