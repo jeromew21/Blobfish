@@ -31,8 +31,7 @@ struct TableBucket {
   TableBucket() {}
 };
 
-template <int N>
-class TranspositionTable {
+template <int N> class TranspositionTable {
   TableBucket _arr[N];
   size_t members;
 
@@ -78,8 +77,7 @@ struct MiniTableBucket {
   std::array<Move, 64> seq;
 };
 
-template <int N>
-class MiniTable {
+template <int N> class MiniTable {
   MiniTableBucket _arr[N];
 
 public:
@@ -132,7 +130,10 @@ int alphaBetaSearch(Board &board, int depth, int plyCount, int alpha, int beta,
                     bool isSave);
 
 int zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
-                    std::atomic<bool> &stop, int &count, NodeType myNodeType);
+                     std::atomic<bool> &stop, int &count, NodeType myNodeType);
+
+std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,
+                                       int &numPositiveMoves);
 
 void init();
 void reset();

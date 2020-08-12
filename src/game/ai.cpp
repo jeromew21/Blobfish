@@ -409,7 +409,7 @@ int AI::quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
   return alpha;
 }
 
-std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,
+std::vector<Move> AI::generateMovesOrdered(Board &board, Move refMove, int plyCount,
                                        int &numPositiveMoves) {
   // order moves for non-qsearch
   u64 occ = board.occupancy();

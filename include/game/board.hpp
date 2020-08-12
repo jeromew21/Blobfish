@@ -57,6 +57,8 @@ public:
   BoardStateStack stack;
   u64 bitboard[12];
 
+  int fullmoveOffset;
+
   void perft(int depth, PerftCounter& pcounter);
 
   float pieceScoreEarlyGame[12];
@@ -110,7 +112,7 @@ public:
   void makeMove(Move mv);
   void unmakeMove();
   void loadPosition(PieceType *piecelist, Color turn, int epIndex, int wlong,
-                    int wshort, int blong, int bshort);
+                    int wshort, int blong, int bshort, int halfmove0, int fullmove0);
   void loadPosition(std::string fen);
 
   // interface methods

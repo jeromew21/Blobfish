@@ -517,7 +517,7 @@ std::string Board::moveToAlgebraic(Move mv) {
 
 BoardStatus Board::status() {
   if (_status == BoardStatus::NotCalculated) {
-    if (boardState[HAS_REPEATED_INDEX] == 1) {
+    if (boardState[HAS_REPEATED_INDEX] == 1 || boardState[HALFMOVE_INDEX] >= 50) {
       _status = BoardStatus::Draw;
       return _status;
     }
@@ -636,6 +636,8 @@ void Board::makeMove(Move mv) {
 
     if (mover % 6 == 0 || destFormer != Empty) {
       boardState[HAS_REPEATED_INDEX] = 0;
+    } else {
+      boardState[HALFMOVE_INDEX] += 1;
     }
 
     boardState[LAST_MOVED_INDEX] = mover;
@@ -823,6 +825,7 @@ void Board::unmakeMove() {
   boardState[LAST_MOVED_INDEX] = node.data[LAST_MOVED_INDEX];
   boardState[LAST_CAPTURED_INDEX] = node.data[LAST_CAPTURED_INDEX];
   boardState[HAS_REPEATED_INDEX] = node.data[HAS_REPEATED_INDEX];
+  boardState[HALFMOVE_INDEX] = node.data[HALFMOVE_INDEX];
 
   _status = BoardStatus::Playing; // do we ever go past?
 
@@ -931,8 +934,8 @@ std::string Board::fen() {
   } else {
     result += "-";
   }
-  result += " 0 ";                                // clock
-  result += std::to_string(stack.getIndex() + 1); // num moves
+  result += " " + std::to_string(boardState[HALFMOVE_INDEX]) + " "; // clock
+  result += std::to_string(max(stack.getIndex() + fullmoveOffset, 1)); // num moves
   return result;
 }
 
@@ -1838,12 +1841,17 @@ void Board::loadPosition(std::string fen) {
     epIndex = indexFromSquareName(elems[3]);
   }
 
-  loadPosition(piecelist, t, epIndex, wlong, wshort, blong, bshort);
+  int halfmove0 = std::stoi(elems[4]);
+  int fullmove0 = std::stoi(elems[5]);
+
+  loadPosition(piecelist, t, epIndex, wlong, wshort, blong, bshort, halfmove0, fullmove0);
 }
 
 void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
-                         int wlong, int wshort, int blong, int bshort) {
+                         int wlong, int wshort, int blong, int bshort, int halfmove0, int fullmove0) {
   // set board, bitboards
+  boardState[HALFMOVE_INDEX] = halfmove0;
+  fullmoveOffset = fullmove0;
   for (PieceType i = 0; i < 12; i++) {
     bitboard[i] = 0;
     pieceScoreEarlyGame[i] = 0;
@@ -1888,5 +1896,5 @@ void Board::reset() {
   rookStartingPositions[Black][1] = u64FromIndex(63);
   kingStartingPositions[White] = u64FromIndex(4);
   kingStartingPositions[Black] = u64FromIndex(60);
-  loadPosition(CLASSICAL_BOARD, White, -1, 1, 1, 1, 1);
+  loadPosition(CLASSICAL_BOARD, White, -1, 1, 1, 1, 1, 0, 0);
 }

@@ -27,7 +27,7 @@ const NodeType All = 2;
 const int SCORE_MIN = -10000000; // minimum value
 const int SCORE_MAX = 10000000;
 
-const int BOARD_STATE_ENTROPY = 9;
+const int BOARD_STATE_ENTROPY = 10;
 
 const int TURN_INDEX = 0;
 const int EN_PASSANT_INDEX = 1;
@@ -38,6 +38,7 @@ const int B_SHORT_INDEX = 5;
 const int LAST_MOVED_INDEX = 6;
 const int LAST_CAPTURED_INDEX = 7;
 const int HAS_REPEATED_INDEX = 8;
+const int HALFMOVE_INDEX = 9;
 
 const Color White = 0;
 const Color Black = 1;
