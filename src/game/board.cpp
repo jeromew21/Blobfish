@@ -536,9 +536,8 @@ BoardStatus Board::status() {
       }
     }
 
-    LazyMovegen movegen(occupancy(turn()), attackMap);
-    Move mv = nextMove(movegen);
-    if (mv.isNull()) {
+    auto movelist = produceUncheckMoves();
+    if (movelist.empty()) {
       if (isCheck()) {
         _status =
             turn() == White ? BoardStatus::BlackWin : BoardStatus::WhiteWin;
@@ -1629,10 +1628,6 @@ std::vector<Move> Board::produceUncheckMoves() {
 }
 
 bool Board::_verifyLegal(Move mv) {
-  return _verifyLegal2(mv);
-}
-
-bool Board::_verifyLegal2(Move mv) {
   // assumes not already in check
   // if we were in check, then a lot of illegal moves would be included
   if (mv.getTypeCode() == MoveTypeCode::CastleLong ||
@@ -1666,122 +1661,8 @@ bool Board::_verifyLegal2(Move mv) {
   return true;
 }
 
+
 bool Board::isCheckingMove(Move mv) {
-  /*
-  bool a =  isCheckingMove(mv, flipColor(turn()));
-  bool b =  isCheckingMove2(mv);
-  if (a != b) {
-    dump(true);
-    std::cout << moveToUCIAlgebraic(mv) << std::endl;
-    std::cout << "a said: " << yesorno(a) << "\n";
-    std::cout << "b said: " << yesorno(b) << "\n";
-    exit(0);
-  }
-  */
-  return isCheckingMove2(mv);
-}
-
-bool Board::isCheckingMove(Move mv, Color kingColor) {
-  // is King Color's king under attack after move is made by myColor
-  // Biggest hotspot
-
-  // case 1: aColor == kingColor. Only care about pinned pieces, or king moves
-  // into check case 2: aColor != kingColor. we care about discovered check and
-  // moves into check
-
-  PieceType king = kingColor == White ? W_King : B_King;
-
-  u64 src = mv.getSrc();
-  u64 dest = mv.getDest();
-  u64 destFormer = pieceAt(dest);
-  PieceType mover = pieceAt(src);
-  int moveType = mv.getTypeCode();
-
-  Color aColor = flipColor(kingColor);
-  Color moveColor = turn(); // in theory this could be diff
-
-  u64 bitboardCopy[12];
-  for (int i = 0; i < 12; i++) {
-    bitboardCopy[i] = bitboard[i];
-  }
-
-  bitboardCopy[mover] &= ~src;
-
-  if (moveType == MoveTypeCode::EnPassant) {
-    if (mover == W_Pawn) {
-      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][Black];
-      bitboardCopy[B_Pawn] &= ~capturedPawn;
-    } else {
-      u64 capturedPawn = PAWN_MOVE_CACHE[u64ToIndex(dest)][White];
-      bitboardCopy[W_Pawn] &= ~capturedPawn;
-    }
-  } else if (moveType == MoveTypeCode::CastleLong) {
-    if (mover == W_King) {
-      bitboardCopy[W_Rook] &= ~rookStartingPositions[White][0];
-      bitboardCopy[W_Rook] |= CASTLE_LONG_ROOK_DEST[White];
-    } else {
-      bitboardCopy[B_Rook] &= ~rookStartingPositions[Black][0];
-      bitboardCopy[B_Rook] |= CASTLE_LONG_ROOK_DEST[Black];
-    }
-  } else if (moveType == MoveTypeCode::CastleShort) {
-    if (mover == W_King) {
-      bitboardCopy[W_Rook] &= ~rookStartingPositions[White][1];
-      bitboardCopy[W_Rook] |= CASTLE_SHORT_ROOK_DEST[White];
-    } else {
-      bitboardCopy[B_Rook] &= ~rookStartingPositions[Black][1];
-      bitboardCopy[B_Rook] |= CASTLE_SHORT_ROOK_DEST[Black];
-    }
-  } else if (destFormer != Empty) { // is capture
-    bitboardCopy[destFormer] &= ~dest;
-  }
-
-  // move to new location
-  if (mv.isPromotion()) {
-    bitboardCopy[mv.getPromotingPiece(moveColor)] |= dest;
-  } else {
-    bitboardCopy[mover] |= dest;
-  }
-
-  // 2. Check if king is in line of fire
-
-  // ray out, knight out, king out, pawn out
-  PieceType offset = aColor * 6;
-  PieceType eknight = W_Knight + offset;
-  PieceType eking = W_King + offset;
-  PieceType epawn = W_Pawn + offset;
-
-  u64 kingBB = bitboardCopy[king];
-  int kingIndex = u64ToIndex(kingBB);
-
-  if (PAWN_CAPTURE_CACHE[kingIndex][kingColor] & bitboardCopy[epawn] ||
-      KNIGHT_MOVE_CACHE[kingIndex] & bitboardCopy[eknight] ||
-      KING_MOVE_CACHE[kingIndex] & bitboardCopy[eking]) {
-    return true;
-  }
-
-  PieceType erook = W_Rook + offset;
-  PieceType ebishop = W_Bishop + offset;
-  PieceType equeen = W_Queen + offset;
-  u64 occ = bitboardCopy[0] | bitboardCopy[1] | bitboardCopy[2] |
-            bitboardCopy[3] | bitboardCopy[4] | bitboardCopy[5] |
-            bitboardCopy[6] | bitboardCopy[7] | bitboardCopy[8] |
-            bitboardCopy[9] | bitboardCopy[10] | bitboardCopy[11];
-
-  for (int d = 0; d < 4; d++) {
-    if ((bitboardCopy[ebishop] | bitboardCopy[equeen]) &
-        _bishopRay(kingBB, d, occ)) {
-      return true;
-    }
-    if ((bitboardCopy[erook] | bitboardCopy[equeen]) &
-        _rookRay(kingBB, d, occ)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// bool Board::isCheckingMove(Move mv) {
-bool Board::isCheckingMove2(Move mv) {
   Color moveColor = turn();
   Color enemyColor = flipColor(moveColor);
 

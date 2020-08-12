@@ -52,7 +52,6 @@ private:
   u64 _bishopRay(u64 origin, int direction, u64 mask);
 
   bool _verifyLegal(Move mv);
-  bool _verifyLegal2(Move mv);
 
 public:
   BoardStateStack stack;
@@ -84,9 +83,6 @@ public:
 
   bool isCheckingMove(Move mv);
   
-  bool isCheckingMove(Move mv, Color kingColor); //del
-  bool isCheckingMove2(Move mv); // del
-
   // Important stuff
   std::vector<Move> legalMoves(); // calls generate
   Color turn();
