@@ -135,6 +135,8 @@ Score zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
 std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,
                                        int &numPositiveMoves);
 
+bool isCheckmateScore(Score sc);
+
 void init();
 void reset();
 

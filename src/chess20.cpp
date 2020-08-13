@@ -47,7 +47,7 @@ public:
         }
         break;
       }
-      if (score.isMate) {
+      if (AI::isCheckmateScore(score)) {
         bestMove = calcMove;
         break;
       } else {               // it finishes at that layer
