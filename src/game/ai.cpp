@@ -301,23 +301,7 @@ Score AI::quiescence(Board &board, int depth, int plyCount, Score alpha,
 
   count++;
 
-  /*
-  TableNode node(board, depth, PV);
-  auto found = table.find(node);
-  if (found != table.end()) {
-    NodeType typ = found->first.nodeType;
-    if (typ == All) {
-      beta = min(beta, found->second);
-    } else if (typ == Cut) {
-      alpha = max(alpha, found->second);
-    } else if (typ == PV) {
-      return (found->second);
-    }
-    if (alpha >= beta) {
-      return beta;
-    }
-  }
-  */
+  
   Score baseline = AI::flippedEval(board);
 
   BoardStatus status = board.status();
@@ -329,10 +313,10 @@ Score AI::quiescence(Board &board, int depth, int plyCount, Score alpha,
     return baseline; // alpha vs baseline...
   }
 
-  if (baseline >= beta)
-    return beta; // fail hard
-
   bool isCheck = board.isCheck();
+
+  if (baseline >= beta && !isCheck)
+    return beta; // fail hard
 
   if (alpha < baseline && !isCheck)
     alpha = baseline; // push alpha up to baseline
@@ -341,8 +325,6 @@ Score AI::quiescence(Board &board, int depth, int plyCount, Score alpha,
   bool deltaPrune = true && hadd(occ) > 12;
 
   MoveVector<256> movelist = board.legalMoves(); // order by MVV-LVA?
-
-  MoveVector<256> quietMoves;
 
   std::vector<MoveScore> moves;
 
@@ -375,27 +357,10 @@ Score AI::quiescence(Board &board, int depth, int plyCount, Score alpha,
 
     if ((!isDeltaPrune && see >= 0) || isChecking || isPromotion || isCheck) {
       moves.push_back(MoveScore(mv, mvscore));
-    } else if (isCheckingMove && (!isCapture || (isCapture && see >= 0))) {
-      quietMoves.push_back(mv);
     }
   }
   while (!moves.empty()) {
     Move mv = popMax(moves);
-    board.makeMove(mv);
-    Score score = quiescence(board, depth, plyCount + 1, beta * -1, alpha * -1,
-                             stop, count, kickoff + 1) *
-                  -1;
-    board.unmakeMove();
-    if (stop)
-      return alpha;
-    if (score >= beta)
-      return beta;
-    if (score > alpha) {
-      alpha = score;
-    }
-  }
-  for (int i = 0; i < quietMoves.size(); i++) {
-    Move mv = quietMoves[i];
     board.makeMove(mv);
     Score score = quiescence(board, depth, plyCount + 1, beta * -1, alpha * -1,
                              stop, count, kickoff + 1) *
@@ -737,7 +702,7 @@ Score AI::zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
 
   Score fscore;
   if (depth == 1 && futilityPrune) {
-    fscore = Score(AI::flippedEval(board) + 900);
+    fscore = AI::flippedEval(board) + 900;
   }
 
   int movesSearched = 0;
