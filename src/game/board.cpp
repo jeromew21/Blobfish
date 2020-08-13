@@ -1842,6 +1842,10 @@ void Board::loadPosition(std::string fen) {
   loadPosition(piecelist, t, epIndex, wlong, wshort, blong, bshort, halfmove0, fullmove0);
 }
 
+int Board::dstart() {
+  return stack.getIndex();
+}
+
 void Board::loadPosition(PieceType *piecelist, Color turn, int epIndex,
                          int wlong, int wshort, int blong, int bshort, int halfmove0, int fullmove0) {
   // set board, bitboards

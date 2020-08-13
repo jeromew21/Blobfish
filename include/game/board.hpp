@@ -122,6 +122,8 @@ public:
   std::string moveToExtAlgebraic(Move mv);
   std::string moveToAlgebraic(Move mv);
 
+  int dstart();
+
   Board();
 };
 

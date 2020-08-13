@@ -280,7 +280,19 @@ void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount,
 
   std::string scoreStr;
   if (isCheckmateScore(score)) {
-    scoreStr = " score mate " + std::to_string(score);
+    
+    int dRoot = SCORE_MAX - abs(score);
+    int v = dRoot - board.dstart();
+
+    if (v%2 == 0) {
+      v = -1*(v/2);
+    } else {
+      v = (v+1)/2;
+    }
+
+    sendCommand("info string plies " + std::to_string(v));
+    scoreStr = " score mate " + std::to_string(v);
+
   } else if (depth == 0) {
     return;
   } else {
@@ -308,7 +320,7 @@ Score AI::quiescence(Board &board, int depth, int plyCount, Score alpha,
 
   if (status != BoardStatus::Playing) {
     if (baseline == SCORE_MIN) {
-      return baseline;
+      return SCORE_MIN + board.dstart();
     }
     return baseline; // alpha vs baseline...
   }
@@ -463,10 +475,19 @@ Score AI::alphaBetaSearch(Board &board, int depth, int plyCount, Score alpha,
   TableNode node(board, depth, myNodeType);
 
   if (status != BoardStatus::Playing) {
-    int score = AI::flippedEval(board); // store?
-    if (score == SCORE_MIN) {
-      return score;
-    } // would not be at score max
+    Score score;
+    if (status == BoardStatus::WhiteWin || status == BoardStatus::BlackWin) {
+      score = SCORE_MIN + board.dstart();
+    } else if (status == BoardStatus::Stalemate || status == BoardStatus::Draw) {
+      score = 0;
+    } else {
+      score = AI::flippedEval(board);
+    }
+    if (score < alpha) {
+      return alpha;
+    } else if (score > beta) {
+      return beta;
+    }
     return score;
   }
 
@@ -474,6 +495,11 @@ Score AI::alphaBetaSearch(Board &board, int depth, int plyCount, Score alpha,
     Score score =
         quiescence(board, depth, plyCount, alpha, beta, stop, count, 0);
     // if mate found in qsearch
+    if (score < alpha) {
+      return alpha;
+    } else if (score > beta) {
+      return beta;
+    }
     return score;
   }
 
@@ -643,16 +669,31 @@ Score AI::zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
   TableNode node(board, depth, myNodeType);
 
   if (status != BoardStatus::Playing) {
-    int score = AI::flippedEval(board); // store?
-    if (score == SCORE_MIN) {
-      return score;
-    } // would not be at score max
+    Score score;
+    if (status == BoardStatus::WhiteWin || status == BoardStatus::BlackWin) {
+      score = SCORE_MIN + board.dstart();
+    } else if (status == BoardStatus::Stalemate || status == BoardStatus::Draw) {
+      score = 0;
+    } else {
+      score = AI::flippedEval(board);
+    }
+    if (score < alpha) {
+      return alpha;
+    } else if (score > beta) {
+      return beta;
+    }
     return score;
   }
 
   if (depth <= 0) {
     Score score =
         quiescence(board, depth, plyCount, alpha, beta, stop, count, 0);
+    // if mate found in qsearch
+    if (score < alpha) {
+      return alpha;
+    } else if (score > beta) {
+      return beta;
+    }
     return score;
   }
 
