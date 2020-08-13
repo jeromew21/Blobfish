@@ -295,6 +295,9 @@ operation.*/
     } else if (tokens[0] == "perft") {
       PerftCounter pcounter;
       int depth = std::stoi(tokens[1]);
+      std::cout << "Zob before: ";
+      u64 before = board.zobrist();
+      dump64(before);
       board.perft(depth, pcounter);
       std::cout << "Nodes: " << pcounter.nodes << "\n";
       std::cout << "Captures: " << pcounter.captures << "\n";
@@ -302,7 +305,11 @@ operation.*/
       std::cout << "EP: " << pcounter.checks << "\n";
       std::cout << "EP: " << pcounter.ep << "\n";
       std::cout << "Promotions: " << pcounter.promotions << "\n";
-      std::cout << "Checkmates: " << pcounter.checkmates << "\nEND PERFT\n\n";
+      std::cout << "Checkmates: " << pcounter.checkmates;
+      std::cout << "\nZob after: ";
+      u64 after = board.zobrist();
+      dump64(after);
+      std::cout << "Are they the same?" << yesorno((before == after)) << "\n";
     } else if (tokens[0] == "unmake") {
       if (board.canUndo()) {
         board.unmakeMove();
