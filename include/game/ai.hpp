@@ -26,7 +26,7 @@ struct TableNode {
 
 struct TableBucket {
   TableNode first;
-  int second;
+  Score second;
 
   TableBucket() {}
 };
@@ -52,7 +52,7 @@ public:
 
   TableBucket *end() { return NULL; }
 
-  void insert(TableNode &node, int score) {
+  void insert(TableNode &node, Score score) {
     u64 hashval = node.hash;
     int bucketIndex = hashval % N;
     TableBucket *bucket = _arr + bucketIndex;
@@ -114,22 +114,22 @@ int materialEvaluation(Board &board);
 int evaluation(Board &board);
 int flippedEval(Board &board);
 
-void sendPV(Board &board, int depth, Move pvMove, int nodeCount, int score,
+void sendPV(Board &board, int depth, Move pvMove, int nodeCount, Score score,
             std::chrono::_V2::system_clock::time_point start);
 
-Move rootMove(Board &board, int depth, std::atomic<bool> &stop, int &outscore,
+Move rootMove(Board &board, int depth, std::atomic<bool> &stop, Score &outscore,
               Move prevPv, int &count,
               std::chrono::_V2::system_clock::time_point start,
               std::vector<MoveScore> &prevScores);
 
-int quiescence(Board &board, int depth, int plyCount, int alpha, int beta,
+Score quiescence(Board &board, int depth, int plyCount, Score alpha, Score beta,
                std::atomic<bool> &stop, int &count, int kickoff);
 
-int alphaBetaSearch(Board &board, int depth, int plyCount, int alpha, int beta,
+Score alphaBetaSearch(Board &board, int depth, int plyCount, Score alpha, Score beta,
                     std::atomic<bool> &stop, int &count, NodeType myNodeType,
                     bool isSave);
 
-int zeroWindowSearch(Board &board, int depth, int plyCount, int beta,
+Score zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
                      std::atomic<bool> &stop, int &count, NodeType myNodeType);
 
 std::vector<Move> generateMovesOrdered(Board &board, Move refMove, int plyCount,

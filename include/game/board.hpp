@@ -7,7 +7,6 @@
 
 void populateMoveCache();
 void initializeZobrist();
-std::string moveToUCIAlgebraic(Move mv);
 u64 kingMoves(int i);
 u64 rookMoves(int i, int d);
 u64 getBackRank(Color c);
@@ -81,12 +80,12 @@ public:
   int see(Move mv);
 
   // shortcut move gen
-  std::vector<Move> produceUncheckMoves();
+  MoveVector<256> produceUncheckMoves();
 
   bool isCheckingMove(Move mv);
   
   // Important stuff
-  std::vector<Move> legalMoves(); // calls generate
+  MoveVector<256> legalMoves(); // calls generate
   Color turn();
   u64 zobrist();
   bool isCheck();

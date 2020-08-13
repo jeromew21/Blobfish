@@ -70,15 +70,7 @@ u64 getBackRank(Color c) { return BACK_RANK[c]; }
 
 u64 rookMoves(int i, int d) { return ROOK_MOVE_CACHE[i][d]; }
 
-std::string moveToUCIAlgebraic(Move mv) {
-  std::string result;
-  result += squareName(mv.getSrc());
-  result += squareName(mv.getDest());
-  if (mv.isPromotion()) {
-    result += pieceToStringAlphLower(mv.getPromotingPiece());
-  }
-  return result;
-}
+
 
 void populateMoveCache() {
   BACK_RANK[White] = u64FromIndex(0) | u64FromIndex(1) | u64FromIndex(2) |
@@ -418,8 +410,9 @@ PieceType Board::pieceAt(u64 space) {
 Move Board::moveFromAlgebraic(const std::string &alg) {
   // shortcut way
   auto moves = legalMoves();
-  for (Move &mv : moves) {
-    if (moveToUCIAlgebraic(mv).compare(alg) == 0 ||
+  for (int i = 0; i < moves.size(); i++) {
+    Move mv = moves[i];
+    if (mv.moveToUCIAlgebraic().compare(alg) == 0 ||
         (moveToExtAlgebraic(mv).compare(alg) == 0 ||
          moveToAlgebraic(mv).compare(alg) == 0)) {
       return mv;
@@ -476,7 +469,8 @@ std::string Board::moveToAlgebraic(Move mv) {
     std::string colDisambig = "";
     std::string rowDisambig = "";
     int overlapCount = 0;
-    for (Move &testMove : moves) {
+    for (int i = 0; i < moves.size(); i++) {
+      Move testMove = moves[i];
       PieceType testmover = pieceAt(mv.getSrc());
 
       if (mover == testmover && pieceAt(mv.getDest()) == testmover) {
@@ -972,22 +966,24 @@ void Board::dump(bool debug) {
       std::cout << pieceToString(boardState[LAST_CAPTURED_INDEX]);
     }
     std::cout << "\nLegal: ";
-    for (Move &mv : moves) {
+    for (int i = 0; i < moves.size(); i++) {
+      Move mv = moves[i];
       std::cout << moveToAlgebraic(mv) << " ";
       if (mv.getDest() & occupancy()) {
         std::cout << "(" << see(mv) << ") ";
       }
     }
     std::cout << "\nOut-Of-Check: ";
-    for (Move &mv : produceUncheckMoves()) {
-      std::cout << moveToAlgebraic(mv) << " ";
+    auto ucmoves = produceUncheckMoves();
+    for (int i = 0; i < ucmoves.size(); i++) {
+      std::cout << moveToAlgebraic(ucmoves[i]) << " ";
     }
     std::cout << "\nIs repetition: ";
     std::cout << yesorno(boardState[HAS_REPEATED_INDEX]);
     std::cout << "\nMoves made: ";
     for (int i = 0; i < (int)stack.getIndex(); i++) {
       Move mv = stack.peekAt(i);
-      std::cout << moveToUCIAlgebraic(mv) << " ";
+      std::cout << mv.moveToUCIAlgebraic() << " ";
       /*std::cout << "(" << (int)mv.getTypeCode() << ")"
                 << " ";*/
     }
@@ -1482,10 +1478,9 @@ bool Board::_isInLineWithKing(u64 square, Color kingColor, u64 kingBB,
   return false;
 }
 
-std::vector<Move> Board::produceUncheckMoves() {
+MoveVector<256> Board::produceUncheckMoves() {
   // todo make this work
-  std::vector<Move> v;
-  v.reserve(8);
+  MoveVector<256> v;
 
   Color color = turn();
   Color enemyColor = flipColor(color);
@@ -1766,13 +1761,12 @@ bool Board::isCheckingMove(Move mv) {
   return false;
 }
 
-std::vector<Move> Board::legalMoves() {
+MoveVector<256> Board::legalMoves() {
   if (isCheck()) {
     return produceUncheckMoves();
   }
 
-  std::vector<Move> v;
-  v.reserve(40);
+  MoveVector<256> v;
   LazyMovegen movegen(occupancy(turn()), attackMap);
   Move mv = nextMove(movegen);
   while (mv.notNull()) {

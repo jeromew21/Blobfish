@@ -105,6 +105,7 @@ std::string pieceToString(PieceType piece) {
   }
 }
 
+
 std::string pieceToStringAlphLower(PieceType piece) {
   switch (piece) {
   case W_King:

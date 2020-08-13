@@ -139,7 +139,7 @@ void Board::perft(int depth, PerftCounter &pcounter) {
     return;
   }
 
-  std::vector<Move> moves = legalMoves();
+  MoveVector<256> moves = legalMoves();
   int s = moves.size();
   u64 occ = occupancy();
   for (int i = 0; i < s; i++) {

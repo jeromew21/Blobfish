@@ -60,6 +60,16 @@ struct Move {
   bool operator==(const Move &other) const { return data == other.data; }
 
   bool operator!=(const Move &other) const { return data != other.data; }
+
+  std::string moveToUCIAlgebraic() {
+    std::string result;
+    result += squareName(getSrc());
+    result += squareName(getDest());
+    if (isPromotion()) {
+      result += pieceToStringAlphLower(getPromotingPiece());
+    }
+    return result;
+  }
 };
 
 #endif

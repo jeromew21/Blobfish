@@ -107,6 +107,112 @@ inline int min(int i1, int i2) {
   }
 }
 
+struct Score {
+  int val;
+  bool isMate;
+
+  Score() {
+    val = 0;
+    isMate = false;
+  }
+
+  Score(int val0) {
+    val = val0;
+    isMate = false;
+  }
+
+  Score(int val0, bool isMate0) {
+    val = val0;
+    isMate = isMate0;
+  }
+
+  Score negate() {
+    return Score(-1 * val, isMate);
+  }
+
+  Score add(int amt) {
+    if (isMate) {
+      return Score(val + amt, true);
+    } else {
+      return Score(val + amt, false);
+    }
+  }
+
+  int toVal() const {
+    if (isMate) {
+      if (val <= 0) {
+        return SCORE_MIN - val;
+      } else {
+        return SCORE_MAX - val;
+      }
+    } else {
+      return val;
+    }
+  }
+
+  void set(Score sc) {
+    val = sc.val;
+    isMate = sc.isMate;
+  }
+
+  void set(int val0, bool isMate0) {
+    val = val0;
+    isMate = isMate0;
+  }
+
+  Score plyIncrement() {
+    if (isMate) {
+      if (val < 0) {
+        return Score(val - 1, true);
+      } else {
+        return Score(val + 1, true);
+      }
+    } else {
+      return Score(val, isMate); // copy
+    }
+  }
+
+  friend bool operator==(const Score &left, const Score &right) {
+    return left.val == right.val && right.isMate == left.isMate;
+  }
+
+  friend bool operator!=(const Score &left, const Score &right) {
+    return !(left == right);
+  }
+
+  friend bool operator>(const Score &left, const Score &right) {
+    return left.toVal() > right.toVal();
+  }
+
+  friend bool operator<(const Score &left, const Score &right) {
+    return left.toVal() < right.toVal();
+  }
+
+  friend bool operator>=(const Score &left, const Score &right) {
+    return left > right || left == right;
+  }
+
+  friend bool operator<=(const Score &left, const Score &right) {
+    return left < right || left == right;
+  }
+};
+
+inline Score max(Score i1, Score i2) {
+  if (i1 > i2) {
+    return i1;
+  } else {
+    return i2;
+  }
+}
+
+inline Score min(Score i1, Score i2) {
+  if (i1 < i2) {
+    return i1;
+  } else {
+    return i2;
+  }
+}
+
 void bitscanAll(std::array<u64, 64> &arr, u64 x, int &outsize);    // hotspot
 void bitscanAllInt(std::array<int, 64> &arr, u64 x, int &outsize); // hotspot
 

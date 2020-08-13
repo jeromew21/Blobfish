@@ -2,6 +2,7 @@
 #define DS_HPP
 
 #include <array>
+#include <string.h>
 #include <vector>
 
 #include <game/move.hpp>
@@ -281,6 +282,58 @@ struct PerftCounter {
     promotions = 0;
     checks = 0;
     checkmates = 0;
+  }
+};
+
+template <int N> struct MoveVector {
+  Move data[N];
+  int size_;
+  MoveVector() { size_ = 0; }
+
+  void push_back(Move mv) {
+    data[size_] = mv;
+    size_++;
+  }
+
+  void pop_back() {
+    if (size_ > 0) {
+      size_--;
+    } else {
+      throw;
+    }
+  }
+
+  Move back() {
+    if (size_ > 0) {
+      return data[size_ - 1];
+    } else {
+      throw;
+    }
+  }
+
+  void clear() { size_ = 0; }
+
+  bool empty() { return size_ == 0; }
+
+  Move operator[](int index) { return data[index]; }
+
+  int size() { return size_; }
+
+  int begin() { return 0; };
+
+  void erase(int index) {
+    // move items down
+    // 0, 1, 2, 3...10
+    memmove(data + index, data + index + 1, (N - index - 1) * sizeof(Move));
+    size_--;
+  }
+
+  void insert(int index, Move mv) {
+    // move items up
+    // 0, 1, 2, 3,...10
+    memmove(data + index + 1, data + index, (N - index - 1) * sizeof(Move));
+    data[index] = mv;
+    size_++;
   }
 };
 

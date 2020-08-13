@@ -29,12 +29,12 @@ public:
     int depth = 0;
     int nodeCount = 1;
     int depthLimit = SCORE_MAX;
-    int bestScore = SCORE_MIN;
+    Score bestScore(SCORE_MIN);
     bestMove = Move::NullMove();
     std::vector<MoveScore> prevScores;
 
     for (depth = 0; depth < depthLimit; depth++) {
-      int score;
+      Score score;
       // send principal variation move from previous
       Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove,
                                    nodeCount, start, prevScores);
@@ -47,7 +47,7 @@ public:
         }
         break;
       }
-      if (abs(score - SCORE_MAX) < 30 || abs(score - SCORE_MIN) < 30) {
+      if (score.isMate) {
         bestMove = calcMove;
         break;
       } else {               // it finishes at that layer
@@ -55,7 +55,7 @@ public:
         bestScore = score;
       }
     }
-    sendCommand("bestmove " + moveToUCIAlgebraic(bestMove));
+    sendCommand("bestmove " + bestMove.moveToUCIAlgebraic());
     _stopKiller = true;
     _notThinking = true;
   }
