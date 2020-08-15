@@ -23,7 +23,7 @@ public:
 
   void think() {
     auto start = std::chrono::high_resolution_clock::now();
-    //sendCommand("info string think() routine started");
+    // sendCommand("info string think() routine started");
     // iterative deepening
 
     int depth = 0;
@@ -40,10 +40,18 @@ public:
                                    nodeCount, start, prevScores);
       if (_notThinking) {
         debugLog("search interrupted");
-        // either the score is better or worse.
-        if (score > bestScore) { // if we get a better score in stopped search
+        if (depth <= 1) {
           bestMove = calcMove;
           bestScore = score;
+        } else {
+          // either the score is better or worse.
+          if (score > bestScore) { // if we get a better score in stopped search
+            bestMove = calcMove;
+            bestScore = score;
+          } else {
+            // score was not beaten in interrupted iteration
+            // add more time?
+          }
         }
         break;
       }
@@ -74,14 +82,14 @@ public:
   void delayStop(int msecs) {
     auto start = std::chrono::high_resolution_clock::now();
     int i = 0;
-    int pad = 25; //25 ms pad
+    int pad = 10; // 25 ms pad
     while (true) {
       if (i % 64 == 0) {
         auto stop = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             stop - start); // or milliseconds
         int time = duration.count();
-        if (time >= msecs-pad) {
+        if (time >= msecs - pad) {
           break;
         }
       }
@@ -99,7 +107,7 @@ public:
     }
     _notThinking = false;
     _stopKiller = false;
-    //sendCommand("info string thread launched");
+    // sendCommand("info string thread launched");
     _task = std::thread(&UCIInterface::think, this);
     if (!inf) {
       _stopperTask = std::thread(&UCIInterface::delayStop, this, msecs);

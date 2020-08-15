@@ -12,7 +12,7 @@
 #define PieceType int
 #define Color int
 #define Score int
-#define NodeType int16_t
+#define NodeType int8_t
 
 #define u64 uint64_t
 

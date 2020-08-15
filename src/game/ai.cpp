@@ -1,7 +1,7 @@
 #include <game/ai.hpp>
 
 TranspositionTable<4194304> table;
-MiniTable<65536> pvTable;
+MiniTable<131072> pvTable;
 KillerTable kTable;
 HistoryTable hTable;
 CounterMoveTable cTable;
@@ -51,9 +51,7 @@ void sortMoves(std::vector<MoveScore> &vec) {
   }
 }
 
-bool AI::isCheckmateScore(Score sc) {
-  return SCORE_MAX - abs(sc) < 250;
-}
+bool AI::isCheckmateScore(Score sc) { return SCORE_MAX - abs(sc) < 250; }
 
 void AI::reset() {
   kTable.clear();
@@ -212,21 +210,16 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
     Score score;
     if (nullWindow) {
-      score = AI::zeroWindowSearch(board, depth, 0, alpha * -1, stop,
-                                   subtreeCount, All) *
-              -1;
+      score = -1* AI::zeroWindowSearch(board, depth, 0, alpha * -1, stop,
+                                   subtreeCount, All);
       if (score > alpha) {
-        score = AI::alphaBetaSearch(board, depth, 0, beta * -1, alpha * -1,
-                                    stop, subtreeCount, PV, true) *
-                -1;
+        score = -1*AI::alphaBetaSearch(board, depth, 0, beta * -1, alpha * -1,
+                                    stop, subtreeCount, PV, true);
       }
     } else {
-      score = AI::alphaBetaSearch(board, depth, 0, beta * -1, alpha * -1, stop,
-                                  subtreeCount, PV, true) *
-              -1;
-      if (refMove.notNull()) {
-        nullWindow = true;
-      }
+      score = -1* AI::alphaBetaSearch(board, depth, 0, beta * -1, alpha * -1, stop,
+                                  subtreeCount, PV, true);
+      nullWindow = true;
     }
     board.unmakeMove();
 
@@ -240,7 +233,6 @@ Move AI::rootMove(Board &board, int depth, std::atomic<bool> &stop,
 
     if (score > alpha) {
       raisedAlpha = true;
-      nullWindow = true;
       alpha = score;
       chosen = mv;
       outscore = alpha;
@@ -280,14 +272,14 @@ void AI::sendPV(Board &board, int depth, Move pvMove, int nodeCount,
 
   std::string scoreStr;
   if (isCheckmateScore(score)) {
-    
+
     int dRoot = SCORE_MAX - abs(score);
     int v = dRoot - board.dstart();
 
-    if (v%2 == 0) {
-      v = -1*(v/2);
+    if (v % 2 == 0) {
+      v = -1 * (v / 2);
     } else {
-      v = (v+1)/2;
+      v = (v + 1) / 2;
     }
 
     sendCommand("info string plies " + std::to_string(v));
@@ -313,7 +305,6 @@ Score AI::quiescence(Board &board, int depth, int plyCount, Score alpha,
 
   count++;
 
-  
   Score baseline = AI::flippedEval(board);
 
   BoardStatus status = board.status();
@@ -352,8 +343,7 @@ Score AI::quiescence(Board &board, int depth, int plyCount, Score alpha,
     // board.bitboard[B_Pawn]);
     bool isDeltaPrune =
         deltaPrune && isCapture &&
-        (baseline + 200 +
-               MATERIAL_TABLE[board.pieceAt(mv.getDest())] < alpha);
+        (baseline + 200 + MATERIAL_TABLE[board.pieceAt(mv.getDest())] < alpha);
     bool isCheckingMove = board.isCheckingMove(mv);
     bool isChecking = (kickoff == 0 || kickoff == 2) && isCheckingMove &&
                       (!isCapture || (isCapture && see >= 0 && !isDeltaPrune));
@@ -478,7 +468,8 @@ Score AI::alphaBetaSearch(Board &board, int depth, int plyCount, Score alpha,
     Score score;
     if (status == BoardStatus::WhiteWin || status == BoardStatus::BlackWin) {
       score = SCORE_MIN + board.dstart();
-    } else if (status == BoardStatus::Stalemate || status == BoardStatus::Draw) {
+    } else if (status == BoardStatus::Stalemate ||
+               status == BoardStatus::Draw) {
       score = 0;
     } else {
       score = AI::flippedEval(board);
@@ -578,21 +569,17 @@ Score AI::alphaBetaSearch(Board &board, int depth, int plyCount, Score alpha,
     }
     Score score;
     if (nullWindow) {
-      score = AI::zeroWindowSearch(board, subdepth, plyCount + 1, alpha * -1,
-                                   stop, count, All) *
-              -1;
+      score = -1*AI::zeroWindowSearch(board, subdepth, plyCount + 1, alpha * -1,
+                                   stop, count, All);
       if (score > alpha) {
-        score = AI::alphaBetaSearch(board, subdepth, plyCount + 1, beta * -1,
-                                    alpha * -1, stop, count, PV, isSave) *
-                -1;
+        score =
+                -1 * AI::alphaBetaSearch(board, subdepth, plyCount + 1, beta * -1,
+                                    alpha * -1, stop, count, PV, isSave) ;
       }
     } else {
-      score = AI::alphaBetaSearch(board, subdepth, plyCount + 1, beta * -1,
-                                  alpha * -1, stop, count, PV, isSave) *
-              -1;
-      if (refMove.notNull()) {
-        nullWindow = true;
-      }
+      score = -1*AI::alphaBetaSearch(board, subdepth, plyCount + 1, beta * -1,
+                                  alpha * -1, stop, count, PV, isSave);
+      nullWindow = true;
     }
 
     board.unmakeMove();
@@ -616,7 +603,6 @@ Score AI::alphaBetaSearch(Board &board, int depth, int plyCount, Score alpha,
     }
 
     if (score > alpha) {
-      nullWindow = true;
       raisedAlpha = true;
       node.nodeType = PV;
       node.bestMove = fmove;
@@ -657,7 +643,7 @@ Score AI::zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
                            NodeType myNodeType) {
   count++;
 
-  Score alpha = beta -1;
+  Score alpha = beta - 1;
 
   NodeType childNodeType = myNodeType == Cut ? All : Cut;
 
@@ -672,7 +658,8 @@ Score AI::zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
     Score score;
     if (status == BoardStatus::WhiteWin || status == BoardStatus::BlackWin) {
       score = SCORE_MIN + board.dstart();
-    } else if (status == BoardStatus::Stalemate || status == BoardStatus::Draw) {
+    } else if (status == BoardStatus::Stalemate ||
+               status == BoardStatus::Draw) {
       score = 0;
     } else {
       score = AI::flippedEval(board);
@@ -729,8 +716,9 @@ Score AI::zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
   if (nullmove && (!nodeIsCheck) && lastMove.notNull() && (occCount > 12)) {
     Move mv = Move::NullMove();
     board.makeMove(mv);
-    Score score = -1*AI::zeroWindowSearch(board, depth - 1 - rNull, plyCount + 1,
-                                       1-beta, stop, count, Cut)                  ;
+    Score score =
+        -1 * AI::zeroWindowSearch(board, depth - 1 - rNull, plyCount + 1,
+                                  1 - beta, stop, count, Cut);
     board.unmakeMove();
     if (score >= beta) { // our move is better than beta, so this node is cut
                          // off
@@ -785,17 +773,15 @@ Score AI::zeroWindowSearch(Board &board, int depth, int plyCount, Score beta,
       isReduced = true;
     }
 
-    Score score = AI::zeroWindowSearch(board, subdepth, plyCount + 1,
-                                       alpha * -1, stop, count, childNodeType) *
-                  -1;
+    Score score = -1*AI::zeroWindowSearch(board, subdepth, plyCount + 1,
+                                       alpha * -1, stop, count, childNodeType);
 
     // LMR here
     if (isReduced && score >= beta) {
       // re-search
       subdepth = depth - 1;
-      score = AI::zeroWindowSearch(board, subdepth, plyCount + 1, alpha * -1,
-                                   stop, count, childNodeType) *
-              -1;
+      score = -1*AI::zeroWindowSearch(board, subdepth, plyCount + 1, alpha * -1,
+                                   stop, count, childNodeType);
     }
 
     board.unmakeMove();

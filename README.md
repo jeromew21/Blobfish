@@ -22,7 +22,6 @@ Idk man just make a branch or something
 8. Improve evaluation (king safety, ML tuning)
 1. Improve hash table eviction policy
 1. Optimize move generation (magic BB, partial movegen) and legality checking (xrays, pins, etc) 
-10. Fix Mate-in-N numbering, ply adjustment
 7. Move ordering concerns (history heuristic)
 10. Internal iterative deepening: use low-depth search to find bestmove candidate if hash miss
 3. Create testing/benchmark suite
@@ -32,5 +31,4 @@ Idk man just make a branch or something
 6. Complete implementation of UCI interface (pondering, etc)
 6. Resolve exit during search issues
 1. Look into parallel search
-10. Fifty-move rule
 9. Look at MCTS / alternative search algorithms

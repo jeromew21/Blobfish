@@ -8,7 +8,7 @@
 
 struct TableNode {
   u64 hash;
-  int depth;
+  int8_t depth;
   NodeType nodeType;
   Move bestMove;
 
@@ -79,9 +79,11 @@ struct MiniTableBucket {
 
 template <int N> class MiniTable {
   MiniTableBucket _arr[N];
-
+  int members;
 public:
-  MiniTable() {}
+  MiniTable() {
+    members = 0;
+  }
 
   MiniTableBucket *find(u64 hashval) {
     int bucketIndex = hashval % N;
@@ -91,6 +93,8 @@ public:
     }
     return NULL;
   }
+
+  int ppm() { return ((double)members / (double)N) * 1000.0; }
 
   MiniTableBucket *end() { return NULL; }
 
@@ -103,6 +107,10 @@ public:
   void insert(u64 hashval, int depth, std::array<Move, 64> *moveseq) {
     int bucketIndex = hashval % N;
     MiniTableBucket *bucket = _arr + bucketIndex;
+    if (bucket->hash == 0) {
+      // no overwrite
+      members += 1;
+    }
     bucket->hash = hashval;
     bucket->seq = *moveseq;
     bucket->depth = depth;
