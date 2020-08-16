@@ -36,7 +36,7 @@ public:
     for (depth = 0; depth < depthLimit; depth++) {
       Score score;
       // send principal variation move from previous
-      Move calcMove = AI::rootMove(board, depth, _notThinking, score, bestMove,
+      Move calcMove = ABSearch::rootMove(board, depth, _notThinking, score, bestMove,
                                    nodeCount, start, prevScores);
       if (_notThinking) {
         debugLog("search interrupted");
@@ -55,7 +55,7 @@ public:
         }
         break;
       }
-      if (AI::isCheckmateScore(score)) {
+      if (isCheckmateScore(score)) {
         bestMove = calcMove;
         break;
       } else {               // it finishes at that layer
@@ -163,7 +163,7 @@ should not rely on this command even though all new GUIs should support it. As
 the engine's reaction to "ucinewgame" can take some time the GUI should always
 send "isready" after "ucinewgame" to wait for the engine to finish its
 operation.*/
-      AI::reset();
+      ABSearch::reset();
     } else if (tokens[0] == "position") {
       int j = 2;
       if (tokens[1] == "startpos") {
@@ -322,6 +322,8 @@ operation.*/
       if (board.canUndo()) {
         board.unmakeMove();
       }
+    } else if (tokens[0] == "mcts") {
+      MCTS::MCTSearch(board);
     }
   }
 
@@ -331,7 +333,6 @@ operation.*/
 int main() {
   populateMoveCache();
   initializeZobrist();
-  AI::init();
   // srand100(65634536);
   srand100(13194);
 

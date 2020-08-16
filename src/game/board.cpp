@@ -631,7 +631,7 @@ void Board::makeMove(Move mv) {
     if (mover % 6 == 0 || destFormer != Empty) {
       boardState[HAS_REPEATED_INDEX] = 0;
       boardState[HALFMOVE_INDEX] = 0;
-    } else {
+    } else if (turn() == Black) {
       boardState[HALFMOVE_INDEX] += 1;
     }
 
@@ -930,7 +930,7 @@ std::string Board::fen() {
     result += "-";
   }
   result += " " + std::to_string(boardState[HALFMOVE_INDEX]) + " "; // clock
-  result += std::to_string(max(stack.getIndex() + fullmoveOffset, 1)); // num moves
+  result += std::to_string((stack.getIndex()/2)+1 + fullmoveOffset); // num moves
   return result;
 }
 
