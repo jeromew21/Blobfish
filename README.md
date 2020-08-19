@@ -13,6 +13,7 @@ Blobfish is a command-line only chess engine, but you can plug it into a GUI or 
 6. Killer heuristic
 7. Countermove heuristic
 7. Threefold Repetition detection (though with the transposition table it gets very messy)
+3. Passes Perft (this means that the move generator should be 100% correct)
 
 # Contributing
 
