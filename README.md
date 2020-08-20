@@ -1,4 +1,4 @@
-# Blobfish
+# Blobfish ![picture of a blobfish](https://raw.githubusercontent.com/jeromew21/Blobfish/mcts/resources/pic.png)
 
 Blobfish is a command-line only chess engine, but you can plug it into a GUI or lichess.
 
