@@ -124,6 +124,9 @@ Node *Node::selectLeaf(Board &board, int &movesMade) {
 }
 
 Node *MCTS::MCTSearch(Board &board) {
+
+  srand(10);
+
   Node *root = new Node(nullptr, Move());
   root->genChildren(board);
   int i = 0;
