@@ -23,7 +23,7 @@ Blobfish is a command-line only chess engine, but you can plug it into a GUI or 
 
 # Contributing
 
-Feel free to make a branch or something
+Feel free to make a branch.
 
 # Todos (somewhat in order of priority)
 8. Improve evaluation (king safety, ML tuning)
